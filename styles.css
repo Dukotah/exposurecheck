@@ -1,0 +1,420 @@
+/* ==========================================================================
+   ExposureCheck — A Copper Bay Labs product
+   Standalone stylesheet. FORKED from LeakCheck for suite cohesion.
+   Design system: Copper Bay Labs (Fraunces + Hanken Grotesk; copper #bf6b3c
+   primary action, bay/teal #13525a secure accent, paper bg, severity
+   critical/high/medium/low). Fonts loaded via Google Fonts <link>.
+
+   Where LeakCheck scans pasted code, ExposureCheck scans a live URL (or pasted
+   response/headers) for publicly-exposed secrets. Same engine, same finding /
+   severity class contract:
+     .finding.sev-critical / .sev-high / .sev-medium / .sev-low  (left border)
+     .sev-badge.sev-critical|high|medium|low                     (pill)
+     .summary-bar > .summary-counts > .sev-count.crit|high|med|low
+   These names MUST match app.js (SEV_ABBR: critical->crit, high, medium->med,
+   low). Do not rename without updating the engine.
+   ========================================================================== */
+
+:root{
+  --ink:#14181f; --paper:#faf8f4; --surface:#fff; --line:#e9e3d8; --line-2:#f0ebe2;
+  --muted:#665f54; --muted-2:#8a8276;
+  --copper:#bf6b3c; --copper-deep:#8f4a22; --copper-tint:#f6ebe2;
+  --bay:#13525a; --bay-deep:#0d3a40; --bay-tint:#e3eeef;
+  --pass:#2f7d52; --pass-bg:#e8f3ec; --warn:#a9711a; --warn-bg:#f9f0dd; --fail:#bb392b; --fail-bg:#f9e7e4;
+  --high:#d2691e; --high-bg:#f7e9dc;
+  --shadow:0 1px 2px rgba(20,24,31,.04), 0 10px 30px -12px rgba(20,24,31,.14);
+  --shadow-lift:0 2px 6px rgba(20,24,31,.06), 0 16px 40px -16px rgba(20,24,31,.18);
+  --r:14px;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,"Cascadia Code","JetBrains Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --transition-fast:.15s ease;
+  --transition-med:.22s ease;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto} *{animation-duration:.001ms!important;transition-duration:.001ms!important}}
+body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.62 "Hanken Grotesk",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:clip}
+.wrap{max-width:960px;margin:0 auto;padding:0 22px}
+.wrap.narrow{max-width:720px}
+h1,h2,h3{font-family:"Fraunces",Georgia,serif;font-weight:600;line-height:1.12;letter-spacing:-.012em;margin:0}
+a{color:var(--copper-deep);text-decoration:none}
+a:hover{text-decoration:underline;text-underline-offset:3px}
+em{font-style:italic;color:var(--copper-deep)}
+strong{font-weight:700}
+:focus-visible{outline:3px solid var(--bay);outline-offset:2px;border-radius:4px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.skip{position:absolute;left:-999px;top:8px;background:var(--ink);color:#fff;padding:10px 16px;border-radius:8px;z-index:50;font-weight:600;letter-spacing:.01em}
+.skip:focus{left:12px}
+
+/* masthead */
+.masthead{background:var(--paper);border-bottom:1px solid var(--line);position:relative;z-index:30}
+.hdr-bar,.masthead .bar{display:flex;align-items:center;justify-content:space-between;gap:14px;min-height:62px;padding:9px 0}
+.brand{display:inline-flex;align-items:center;gap:10px;color:var(--ink)}
+.brand:hover{text-decoration:none}
+.mark{width:30px;height:30px;flex:0 0 auto}
+.wordmark{font-family:"Fraunces",serif;font-weight:700;font-size:21px;letter-spacing:-.02em}
+.nav{display:flex;gap:24px}
+.nav a{color:var(--muted);font-weight:600;font-size:15.5px;transition:color var(--transition-fast)}
+.nav a:hover{color:var(--ink);text-decoration:none}
+
+/* hero */
+.hero{padding:72px 0 40px;position:relative;overflow:hidden;text-align:center}
+.hero::before{content:"";position:absolute;width:520px;height:520px;border:64px solid var(--copper-tint);border-radius:50%;right:-220px;top:-180px;z-index:0;opacity:.7;pointer-events:none}
+.hero .wrap{position:relative;z-index:1}
+.eyebrow{color:var(--copper-deep);font-weight:700;font-size:13.5px;letter-spacing:.09em;text-transform:uppercase;margin:0 0 14px}
+.hero h1{font-size:clamp(34px,6vw,60px);max-width:15ch;margin:0 auto 18px}
+.lede{max-width:600px;margin:0 auto 30px;color:var(--muted);font-size:clamp(17px,2.3vw,20px)}
+.lede strong{color:var(--ink)}
+
+/* primary button */
+.btn{padding:12px 20px;font:inherit;font-size:15.5px;font-weight:700;border-radius:11px;cursor:pointer;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:border-color var(--transition-fast),background var(--transition-fast),box-shadow var(--transition-fast),transform var(--transition-fast);text-decoration:none}
+.btn:hover{border-color:var(--bay);text-decoration:none;background:var(--bay-tint)}
+.btn:focus-visible{outline:3px solid var(--bay);outline-offset:2px}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--copper);color:#fff;border-color:var(--copper)}
+.btn.primary:hover{background:var(--copper-deep);border-color:var(--copper-deep);box-shadow:var(--shadow-lift)}
+.btn.large{padding:14px 26px;font-size:16.5px;border-radius:12px}
+.btn svg{width:17px;height:17px}
+.btn[disabled],.btn:disabled{opacity:.55;cursor:not-allowed;transform:none}
+.btn.ghost{background:transparent;border-color:var(--line)}
+.btn-row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+
+/* ==========================================================================
+   ExposureCheck: scanner input — URL row + paste-mode textarea
+   ========================================================================== */
+.scanner{position:relative;z-index:1;max-width:760px;margin:0 auto}
+.code-tool{background:var(--surface);border:1.5px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden;transition:border-color var(--transition-fast),box-shadow var(--transition-fast)}
+.code-tool:focus-within{border-color:var(--bay);box-shadow:0 0 0 4px rgba(19,82,90,.12),var(--shadow-lift)}
+
+.code-label{display:block;text-align:left;font-size:13.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted-2);margin:0 0 10px}
+.code-label code{font-family:var(--mono);font-size:12.5px;background:var(--paper);border:1px solid var(--line);border-radius:5px;padding:1px 6px;text-transform:none;color:var(--bay)}
+
+/* the URL input row — globe prefix + flush input, like a search bar.
+   Markup: <div class="url-row"><span class="url-prefix">svg</span><input class="url-input"></div> */
+.url-row{position:relative;display:flex;align-items:stretch;padding:16px 18px}
+.url-prefix{position:absolute;left:32px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:var(--bay);display:inline-flex;align-items:center;justify-content:center;pointer-events:none;z-index:1}
+.url-prefix svg{width:18px;height:18px}
+.url-input{flex:1 1 auto;min-width:0;font:inherit;font-size:16px;color:var(--ink);background:var(--surface);border:1.5px solid var(--line);border-radius:12px;padding:13px 16px 13px 42px;line-height:1.4;transition:border-color var(--transition-fast),box-shadow var(--transition-fast)}
+.url-input::placeholder{color:var(--muted-2);opacity:.9}
+.url-input:focus{outline:none;border-color:var(--bay);box-shadow:0 0 0 4px rgba(19,82,90,.12)}
+.url-input:invalid:not(:placeholder-shown){border-color:var(--fail)}
+
+/* toggle row beneath the URL field: switch into paste mode */
+.input-modes{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0 0;justify-content:flex-start}
+.mode-toggle{appearance:none;font:inherit;font-size:13.5px;font-weight:600;color:var(--muted);background:transparent;border:0;border-bottom:1.5px dashed var(--line);padding:2px 1px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:color var(--transition-fast),border-color var(--transition-fast)}
+.mode-toggle:hover{color:var(--bay);border-bottom-color:var(--bay)}
+.mode-toggle:focus-visible{outline:3px solid var(--bay);outline-offset:3px;border-radius:3px}
+.mode-toggle svg{width:15px;height:15px}
+.mode-toggle[aria-pressed="true"]{color:var(--bay);border-bottom-style:solid;border-bottom-color:var(--bay)}
+
+/* the paste-mode wrap — hidden until the toolbar toggle reveals it */
+.paste-wrap{padding:16px 18px;border-top:1px solid var(--line);background:var(--paper)}
+.paste-wrap[hidden]{display:none}
+.paste-wrap .code-input{border:1.5px solid var(--line);border-radius:12px;min-height:200px;transition:border-color var(--transition-fast),box-shadow var(--transition-fast)}
+.paste-wrap .code-input:focus{border-color:var(--bay);box-shadow:0 0 0 4px rgba(19,82,90,.12)}
+
+/* the paste-mode textarea — hidden until toggled into view, monospace */
+.paste-input{display:block;width:100%;min-height:200px;resize:vertical;background:var(--surface);color:var(--ink);border:1.5px solid var(--line);border-radius:12px;
+  font-family:var(--mono);font-size:14px;line-height:1.6;letter-spacing:0;padding:14px 16px;tab-size:2;margin:14px 0 0;transition:border-color var(--transition-fast),box-shadow var(--transition-fast)}
+.paste-input::placeholder{color:var(--muted-2);opacity:.85}
+.paste-input:focus{outline:none;border-color:var(--bay);box-shadow:0 0 0 4px rgba(19,82,90,.12)}
+.paste-input[hidden]{display:none}
+
+/* toolbar row (kept from LeakCheck for paste-mode controls) */
+.code-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 12px;background:var(--paper);border-bottom:1px solid var(--line)}
+.code-toolbar .tb-label{font-size:12.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted-2);margin-right:auto}
+.tb-btn{appearance:none;font:inherit;font-size:13.5px;font-weight:600;color:var(--muted);background:var(--surface);border:1.5px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:border-color var(--transition-fast),color var(--transition-fast),background var(--transition-fast)}
+.tb-btn:hover{border-color:var(--bay);color:var(--bay);background:var(--bay-tint)}
+.tb-btn:focus-visible{outline:3px solid var(--bay);outline-offset:2px}
+.tb-btn svg{width:15px;height:15px}
+.tb-btn[aria-expanded="true"]{border-color:var(--bay);color:var(--bay);background:var(--bay-tint)}
+
+/* legacy code textarea (paste mode can also use .code-input) */
+.code-input{display:block;width:100%;min-height:220px;resize:vertical;border:0;outline:none;background:var(--surface);color:var(--ink);
+  font-family:var(--mono);font-size:14px;line-height:1.6;letter-spacing:0;padding:16px 18px;tab-size:2}
+.code-input::placeholder{color:var(--muted-2);opacity:.85}
+.code-input:focus{outline:none}
+
+/* actions under the input */
+.scan-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:18px 0 0;justify-content:center}
+
+/* ==========================================================================
+   ExposureCheck: SAFETY notice callout — bay-tinted, with shield/lock glyph
+   ========================================================================== */
+.safety-note{display:flex;align-items:flex-start;gap:13px;max-width:760px;margin:18px auto 0;padding:14px 18px;background:var(--bay-tint);border:1px solid #cfe1e3;border-left:4px solid var(--bay);border-radius:0 12px 12px 0;color:#1c3c40;font-size:14.5px;line-height:1.55;text-align:left}
+.safety-note .safety-glyph{flex:0 0 auto;width:26px;height:26px;margin-top:1px;color:var(--bay);display:inline-flex;align-items:center;justify-content:center}
+.safety-note .safety-glyph svg{width:24px;height:24px}
+.safety-note .safety-body{min-width:0}
+.safety-note .safety-title{display:block;font-weight:800;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--bay-deep);margin:0 0 3px}
+.safety-note p{margin:0}
+.safety-note strong{color:var(--bay-deep)}
+.safety-note code,.safety-note .mono{font-family:var(--mono);font-size:13px;background:rgba(19,82,90,.10);border-radius:5px;padding:1px 6px;color:var(--bay-deep)}
+
+/* trust badge (compact pill variant of the safety note) */
+.trust-badge{display:inline-flex;align-items:center;gap:9px;margin:16px auto 0;padding:8px 16px;background:var(--bay-tint);border:1px solid #cfe1e3;border-radius:999px;color:var(--bay);font-size:14px;font-weight:600;max-width:max-content}
+.trust-badge svg{width:16px;height:16px;flex:0 0 auto;color:var(--bay)}
+.trust-badge strong{color:var(--bay-deep)}
+.scanner .trust-badge{display:flex}
+
+/* ==========================================================================
+   ExposureCheck: scan-progress indicator — shows the current check running
+   ========================================================================== */
+.scan-progress{display:flex;align-items:center;gap:13px;max-width:760px;margin:18px auto 0;padding:13px 18px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);text-align:left}
+.scan-progress[hidden]{display:none}
+.scan-progress .sp-spinner{flex:0 0 auto;width:20px;height:20px;border-radius:50%;border:2.5px solid var(--bay-tint);border-top-color:var(--bay);animation:sp-spin .7s linear infinite}
+@keyframes sp-spin{to{transform:rotate(360deg)}}
+.scan-progress .sp-text{flex:1 1 auto;min-width:0;font-size:14.5px;font-weight:600;color:var(--ink)}
+.scan-progress .sp-text .sp-check{font-family:var(--mono);font-size:13.5px;font-weight:700;color:var(--bay);display:inline-block}
+.scan-progress .sp-text .sp-sub{display:block;font-family:inherit;font-weight:500;font-size:13px;color:var(--muted);margin-top:1px}
+.scan-progress .sp-count{flex:0 0 auto;font-family:var(--mono);font-size:12.5px;font-weight:700;color:var(--muted);background:var(--paper);border:1px solid var(--line);border-radius:7px;padding:3px 9px;font-variant-numeric:tabular-nums}
+/* thin progress track + fill (optional, driven by --pct inline var) */
+.scan-progress .sp-track{flex:0 0 120px;height:6px;border-radius:999px;background:var(--bay-tint);overflow:hidden;position:relative}
+.scan-progress .sp-track .sp-fill{position:absolute;inset:0 auto 0 0;width:var(--pct,0%);background:var(--bay);border-radius:999px;transition:width var(--transition-med)}
+
+/* ==========================================================================
+   ExposureCheck: results  (REUSED from LeakCheck — engine contract)
+   ========================================================================== */
+.results{padding:8px 0 8px;scroll-margin-top:20px}
+.results[hidden]{display:none}
+.results-head{display:flex;align-items:baseline;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:0 0 16px}
+.results-head h2{font-size:clamp(24px,3.4vw,32px)}
+.results-head .meta{color:var(--muted);font-size:14.5px}
+
+/* summary bar with severity count chips */
+.summary-bar{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow);margin:0 0 22px}
+.summary-bar .summary-title{font-weight:700;margin-right:auto;font-size:15.5px}
+.summary-headline{font-family:"Fraunces",serif;font-weight:600;font-size:17px;letter-spacing:-.01em;margin:0;margin-right:auto;color:var(--ink)}
+.summary-counts{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+/* inline spinner shown in the progress summary-bar during a scan */
+.scan-spinner{flex:0 0 auto;width:20px;height:20px;border-radius:50%;border:2.5px solid var(--bay-tint);border-top-color:var(--bay);animation:sp-spin .7s linear infinite}
+
+/* grouped findings */
+.finding-group{margin:0 0 22px}
+.finding-group:last-child{margin-bottom:0}
+.group-head{font-family:"Fraunces",serif;font-weight:600;font-size:15px;letter-spacing:.02em;text-transform:uppercase;color:var(--muted);margin:0 0 12px}
+.finding-group .finding{margin-bottom:14px}
+.finding-group .finding:last-child{margin-bottom:0}
+.sev-count{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:700;border-radius:999px;padding:6px 13px;border:1.5px solid transparent;line-height:1}
+.sev-count .n{font-variant-numeric:tabular-nums;font-size:15px}
+.sev-count .dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+.sev-count.crit{background:var(--fail-bg);color:#8f261b;border-color:#eccbc6}
+.sev-count.crit .dot{background:var(--fail)}
+.sev-count.high{background:var(--high-bg);color:#9a4d12;border-color:#e9cfb6}
+.sev-count.high .dot{background:var(--high)}
+.sev-count.med{background:var(--warn-bg);color:#855616;border-color:#ecd9b3}
+.sev-count.med .dot{background:var(--warn)}
+.sev-count.low{background:var(--pass-bg);color:#256142;border-color:#c8e3d2}
+.sev-count.low .dot{background:var(--pass)}
+.sev-count.zero{background:var(--paper);color:var(--muted-2);border-color:var(--line)}
+.sev-count.zero .dot{background:var(--muted-2)}
+
+/* findings list */
+.findings{display:flex;flex-direction:column;gap:14px;margin:0;padding:0;list-style:none}
+
+/* a single finding card — thick LEFT border colored by severity */
+.finding{background:var(--surface);border:1px solid var(--line);border-left:5px solid var(--muted-2);border-radius:12px;padding:18px 20px;box-shadow:var(--shadow);transition:box-shadow var(--transition-fast),transform var(--transition-fast)}
+.finding:hover{box-shadow:var(--shadow-lift)}
+.finding.sev-critical{border-left-color:var(--fail)}
+.finding.sev-high{border-left-color:var(--high)}
+.finding.sev-medium{border-left-color:var(--warn)}
+.finding.sev-low{border-left-color:var(--muted)}
+
+.finding-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 8px}
+.finding-title{font-family:"Fraunces",serif;font-weight:600;font-size:19px;letter-spacing:-.01em;margin:0;color:var(--ink)}
+.finding-desc{color:var(--muted);font-size:15px;margin:0 0 14px;max-width:70ch}
+.finding-desc:last-child{margin-bottom:0}
+
+/* severity badge pill */
+.sev-badge{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-radius:999px;padding:4px 11px;line-height:1;border:1.5px solid transparent;white-space:nowrap}
+.sev-badge .dot{width:7px;height:7px;border-radius:50%}
+.finding.sev-critical .sev-badge,.sev-badge.sev-critical{background:var(--fail-bg);color:#8f261b;border-color:#eccbc6}
+.finding.sev-critical .sev-badge .dot,.sev-badge.sev-critical .dot{background:var(--fail)}
+.finding.sev-high .sev-badge,.sev-badge.sev-high{background:var(--high-bg);color:#9a4d12;border-color:#e9cfb6}
+.finding.sev-high .sev-badge .dot,.sev-badge.sev-high .dot{background:var(--high)}
+.finding.sev-medium .sev-badge,.sev-badge.sev-medium{background:var(--warn-bg);color:#855616;border-color:#ecd9b3}
+.finding.sev-medium .sev-badge .dot,.sev-badge.sev-medium .dot{background:var(--warn)}
+.finding.sev-low .sev-badge,.sev-badge.sev-low{background:var(--pass-bg);color:#256142;border-color:#c8e3d2}
+.finding.sev-low .sev-badge .dot,.sev-badge.sev-low .dot{background:var(--pass)}
+
+/* line-number chip */
+.line-chip{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--muted);background:var(--paper);border:1px solid var(--line);border-radius:7px;padding:3px 9px;line-height:1;white-space:nowrap}
+.line-chip::before{content:"L";color:var(--muted-2);font-weight:700}
+.line-chip.no-prefix::before{content:none}
+
+/* masked-secret monospace style */
+.secret-snippet{display:block;font-family:var(--mono);font-size:13.5px;line-height:1.55;background:#fbf6f2;border:1px solid var(--line);border-radius:9px;padding:11px 14px;margin:0 0 14px;color:#3a2a20;overflow-x:auto;white-space:pre;word-break:break-all;-webkit-overflow-scrolling:touch}
+.secret-snippet .masked{color:var(--copper-deep);font-weight:700;letter-spacing:.04em}
+.secret-snippet .label{color:var(--muted-2)}
+.masked{font-family:var(--mono)}
+
+/* source attribution line (which file/path a finding came from) */
+.finding-source{font-size:13.5px;color:var(--muted);margin:0 0 12px;word-break:break-all}
+.finding-source .label{font-weight:700;color:var(--muted-2);text-transform:uppercase;letter-spacing:.04em;font-size:12px}
+
+/* fix block — copper-tinted */
+.fix{background:var(--copper-tint);border-left:4px solid var(--copper);border-radius:0 10px 10px 0;padding:12px 16px;margin:14px 0 0;color:#5a3a22;font-size:14.5px;line-height:1.55}
+.fix .fix-body{margin:0}
+.fix .fix-label{display:inline-flex;align-items:center;gap:6px;font-weight:800;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--copper-deep);margin:0 0 5px}
+.fix .fix-label svg{width:14px;height:14px}
+.fix p{margin:0}
+.fix p+p{margin-top:8px}
+.fix code,.fix .mono{font-family:var(--mono);font-size:13px;background:rgba(143,74,34,.10);border-radius:5px;padding:1px 6px;color:var(--copper-deep)}
+
+/* copy button + states */
+.copy-button{appearance:none;font:inherit;font-size:12.5px;font-weight:700;color:var(--muted);background:var(--surface);border:1.5px solid var(--line);border-radius:8px;padding:5px 11px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:border-color var(--transition-fast),color var(--transition-fast),background var(--transition-fast)}
+.copy-button:hover{border-color:var(--bay);color:var(--bay);background:var(--bay-tint)}
+.copy-button:focus-visible{outline:3px solid var(--bay);outline-offset:2px}
+.copy-button svg{width:14px;height:14px}
+.copy-button.copied{border-color:var(--pass);color:var(--pass);background:var(--pass-bg)}
+.copy-button .copied-text{display:none}
+.copy-button.copied .copied-text{display:inline}
+.copy-button.copied .default-text{display:none}
+.snippet-row{display:flex;align-items:flex-start;gap:10px}
+.snippet-row .secret-snippet{flex:1 1 auto;margin-bottom:0}
+
+/* empty state — centered, friendly, pass-colored */
+.empty-state{text-align:center;background:var(--pass-bg);border:1px solid #c8e3d2;border-radius:var(--r);padding:42px 28px;box-shadow:var(--shadow)}
+.empty-state .es-icon{width:56px;height:56px;margin:0 auto 16px;color:var(--pass);display:block}
+.empty-state h3{font-size:24px;color:#1f5b3c;margin:0 0 8px}
+.empty-state p{color:#2f6048;font-size:16px;max-width:46ch;margin:0 auto}
+.empty-state .es-sub{color:#4a7a60;font-size:14px;margin-top:14px}
+
+/* ==========================================================================
+   "what we detect" grid (reuse .feature)
+   ========================================================================== */
+section.detect{padding:54px 0 18px;text-align:center}
+.detect .section-head{text-align:center;max-width:620px;margin:0 auto 34px}
+.detect .section-head h2{font-size:clamp(26px,4vw,38px);margin:0 0 12px}
+.detect .section-head p{color:var(--muted)}
+.detect-title{font-size:clamp(26px,4vw,38px);margin:0 0 12px}
+.detect-sub{color:var(--muted);max-width:560px;margin:0 auto 34px}
+.detect-grid{text-align:left}
+.detect-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.feature{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:22px 22px 24px;box-shadow:var(--shadow);transition:box-shadow var(--transition-fast),transform var(--transition-fast),border-color var(--transition-fast)}
+.feature:hover{box-shadow:var(--shadow-lift);transform:translateY(-2px);border-color:var(--line-2)}
+.feature .feat-icon{min-width:40px;height:40px;padding:0 11px;border-radius:10px;background:var(--bay-tint);color:var(--bay);display:inline-flex;align-items:center;justify-content:center;margin:0 0 14px;font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:.02em;text-transform:uppercase}
+.feature .feat-icon svg{width:21px;height:21px}
+.feature h3{font-size:19px;margin:0 0 7px}
+.feature p{color:var(--muted);font-size:15px;margin:0}
+.feature .feat-tag{display:inline-flex;align-items:center;gap:5px;margin-top:12px;font-family:var(--mono);font-size:12px;font-weight:600;color:var(--muted-2);background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:3px 8px}
+
+/* ==========================================================================
+   how-it-works steps
+   ========================================================================== */
+section.steps{padding:50px 0 18px;text-align:center}
+.steps .section-head{text-align:center;max-width:600px;margin:0 auto 34px}
+.steps .section-head h2{font-size:clamp(26px,4vw,38px)}
+.steps-title{font-size:clamp(26px,4vw,38px);margin:0 auto 34px;max-width:600px}
+.step-grid{text-align:left}
+.step-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
+.step{position:relative;padding:8px 4px 0}
+.step .step-num{width:34px;height:34px;border-radius:50%;background:var(--copper);color:#fff;font-family:"Fraunces",serif;font-weight:700;font-size:17px;display:inline-flex;align-items:center;justify-content:center;margin:0 0 12px}
+.step h3{font-size:18px;margin:0 0 6px}
+.step p{color:var(--muted);font-size:15px;margin:0}
+
+/* ==========================================================================
+   ExposureCheck: SUITE cross-link band — LeakCheck + ShipSafe
+   ========================================================================== */
+.suite-band{padding:50px 0 18px}
+.suite-band .section-head{text-align:center;max-width:620px;margin:0 auto 30px}
+.suite-band .section-head h2{font-size:clamp(24px,3.6vw,34px);margin:0 0 10px}
+.suite-band .section-head p{color:var(--muted)}
+.suite-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.suite-card{display:flex;flex-direction:column;gap:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:22px 22px 24px;box-shadow:var(--shadow);text-decoration:none;color:var(--ink);transition:box-shadow var(--transition-fast),transform var(--transition-fast),border-color var(--transition-fast)}
+.suite-card:hover{text-decoration:none;box-shadow:var(--shadow-lift);transform:translateY(-2px);border-color:var(--bay)}
+.suite-card:focus-visible{outline:3px solid var(--bay);outline-offset:2px}
+.suite-card .suite-icon{width:42px;height:42px;border-radius:11px;display:inline-flex;align-items:center;justify-content:center;margin:0 0 13px;background:var(--bay-tint);color:var(--bay)}
+.suite-card .suite-icon svg{width:23px;height:23px}
+.suite-card .suite-name{font-family:"Fraunces",serif;font-weight:700;font-size:20px;letter-spacing:-.01em;margin:0 0 4px;color:var(--ink);display:flex;align-items:center;gap:9px}
+.suite-card .suite-name .pill{font-family:"Hanken Grotesk",sans-serif;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--copper-deep);background:var(--copper-tint);border-radius:999px;padding:3px 9px;line-height:1}
+.suite-card p{color:var(--muted);font-size:14.5px;margin:0;flex:1 1 auto}
+.suite-card .suite-cta{display:inline-flex;align-items:center;gap:6px;margin-top:15px;font-weight:700;font-size:14px;color:var(--copper-deep);transition:gap var(--transition-fast)}
+.suite-card .suite-cta svg{width:15px;height:15px;transition:transform var(--transition-fast)}
+.suite-card:hover .suite-cta{gap:9px}
+.suite-card:hover .suite-cta svg{transform:translateX(3px)}
+.suite-card .suite-cta.muted{color:var(--muted-2);font-weight:600}
+.suite-card .feat-icon{margin-bottom:13px;align-self:flex-start}
+/* accent the card the user is already on, or the "secure" sibling */
+.suite-card.is-current{border-color:var(--copper);background:var(--copper-tint)}
+.suite-card.is-current .suite-icon{background:#fff;color:var(--copper)}
+
+/* content pages */
+.doc{padding:46px 0 20px}
+.doc h1{font-size:clamp(30px,5vw,44px);margin-bottom:8px}
+.doc .lede{text-align:left;margin:0 0 26px}
+.doc h2{font-size:24px;margin:34px 0 12px}
+.doc p,.doc li{color:#2c2f36;max-width:68ch}
+.callout{background:var(--bay-tint);border-left:4px solid var(--bay);border-radius:0 10px 10px 0;padding:14px 18px;margin:18px 0;color:#1c3c40}
+
+/* faq */
+.faq{padding:46px 0 56px}
+.faq .section-head{text-align:center;max-width:600px;margin:0 auto 28px}
+.faq .section-head h2{font-size:clamp(26px,4vw,38px)}
+.faq details{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin-bottom:11px}
+.faq summary{font-weight:700;cursor:pointer;font-size:16.5px;list-style:none}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::before{content:"+";color:var(--copper);font-weight:700;margin-right:10px}
+.faq details[open] summary::before{content:"\2013"}
+.faq details p{color:var(--muted);margin:12px 0 0}
+
+/* footer */
+.footer{background:var(--ink);color:#cbd2da;margin-top:64px;padding:40px 0 30px}
+.foot{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;align-items:flex-start}
+.footer .brand{color:#fff} .footer .wordmark{color:#fff}
+.footer .brand.small .wordmark{font-size:19px}
+.fine{color:#8b95a0;font-size:13.5px;margin:8px 0 0}
+.foot-nav{display:flex;gap:22px;flex-wrap:wrap}
+.foot-legal{margin-top:12px}
+.footer a{color:#e7ebf0;font-weight:600;transition:color var(--transition-fast)}
+.footer a:hover{color:#fff}
+.madeby{color:#7d8893;font-size:13.5px;margin:22px 0 0;border-top:1px solid #262c35;padding-top:18px}
+
+/* ==========================================================================
+   responsive
+   ========================================================================== */
+@media (max-width:600px){
+  body{font-size:16px}
+  .hero{padding:44px 0 28px}
+  .hero h1{font-size:clamp(30px,8vw,40px)}
+  .nav{gap:15px}
+  .scanner,.code-tool{max-width:100%}
+  .code-input{min-height:200px;font-size:13.5px;padding:14px}
+  .paste-input{min-height:180px;font-size:13.5px;padding:13px}
+  /* keep the URL row comfortable on mobile */
+  .url-row{padding:14px 14px}
+  .url-prefix{left:28px}
+  .url-input{flex:1 1 100%;font-size:16px}
+  .paste-wrap{padding:14px 14px}
+  .scan-actions{flex-direction:column;align-items:stretch}
+  .scan-actions .btn,.btn-row .btn{width:100%}
+  .btn-row{flex-direction:column}
+  .code-toolbar{padding:9px 10px}
+  .safety-note{padding:13px 14px;gap:11px}
+  .scan-progress{flex-wrap:wrap;padding:12px 14px}
+  .scan-progress .sp-track{flex:1 1 100%;order:3}
+  .summary-bar{padding:12px 13px}
+  .summary-bar .summary-title{width:100%;margin-bottom:4px}
+  .finding{padding:16px 16px}
+  .results-head{margin-bottom:12px}
+  .snippet-row{flex-direction:column}
+  .snippet-row .copy-button{align-self:flex-start}
+  .empty-state{padding:34px 20px}
+  .suite-grid{grid-template-columns:1fr}
+  .footer{margin-top:48px}
+  .foot{flex-direction:column;gap:18px}
+}
+
+/* ==========================================================================
+   forced colors / high contrast
+   ========================================================================== */
+@media (forced-colors:active){
+  .finding,.feature,.summary-bar,.code-tool,.empty-state,.safety-note,.scan-progress,.suite-card{border:1px solid CanvasText}
+  .finding{border-left-width:5px}
+  .safety-note{border-left-width:4px}
+  .sev-badge,.sev-count,.line-chip,.trust-badge,.btn,.tb-btn,.copy-button,.url-input,.code-input,.paste-input{border:1px solid CanvasText}
+  .copy-button.copied{forced-color-adjust:none}
+  .hero::before{display:none}
+  .btn.primary{forced-color-adjust:none}
+  .sev-count .dot,.sev-badge .dot{forced-color-adjust:none}
+  .scan-progress .sp-spinner{forced-color-adjust:none}
+}

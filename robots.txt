@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://dukotah.github.io/exposurecheck/sitemap.xml

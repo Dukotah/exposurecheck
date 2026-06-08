@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ExposureCheck — OG card template (1200×630)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Hanken+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{background:#5a6470}
+  /* Capture this 1200x630 node to make og-image.png */
+  .card{
+    width:1200px;height:630px;position:relative;overflow:hidden;
+    background:#faf8f4;color:#14181f;
+    font-family:"Hanken Grotesk",system-ui,sans-serif;
+    padding:78px 84px;display:flex;flex-direction:column;justify-content:space-between;
+  }
+  /* copper ring motif, echoing the hero ::before */
+  .ring{position:absolute;width:560px;height:560px;border:70px solid #f6ebe2;border-radius:50%;right:-200px;top:-170px;opacity:.85}
+  .ring2{position:absolute;width:300px;height:300px;border:1px solid #e9e3d8;border-radius:50%;right:120px;bottom:-150px;opacity:.7}
+  .top{position:relative;z-index:1;display:flex;align-items:center;gap:20px}
+  .top .mark{width:64px;height:64px;flex:0 0 auto}
+  .top .name{font-family:"Fraunces",Georgia,serif;font-weight:700;font-size:42px;letter-spacing:-.02em}
+  .eyebrow{position:relative;z-index:1;color:#8f4a22;font-weight:700;font-size:22px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:18px}
+  .mid{position:relative;z-index:1}
+  h1{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:78px;line-height:1.05;letter-spacing:-.02em;max-width:18ch}
+  h1 .hl{color:#bf6b3c}
+  .sub{margin-top:22px;font-size:30px;color:#665f54;max-width:30ch;font-weight:500}
+  .foot{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between}
+  .foot .by{font-size:24px;color:#665f54;font-weight:600}
+  .foot .by b{color:#13525a}
+  .pills{display:flex;gap:12px}
+  .pill{font-size:20px;font-weight:700;color:#13525a;background:#e3eeef;border:1px solid #cfe1e3;border-radius:999px;padding:8px 18px}
+</style>
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="ring" aria-hidden="true"></div>
+    <div class="ring2" aria-hidden="true"></div>
+
+    <div class="top">
+      <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="27" cy="27" r="17" fill="none" stroke="#13525a" stroke-width="3.5"/>
+        <path d="M10 27h34" fill="none" stroke="#13525a" stroke-width="2.6"/>
+        <path d="M27 10c8 7 8 27 0 34c-8-7-8-27 0-34Z" fill="none" stroke="#13525a" stroke-width="2.6"/>
+        <circle cx="38" cy="38" r="13" fill="#faf8f4" stroke="#bf6b3c" stroke-width="4.5"/>
+        <circle cx="38" cy="38" r="3.4" fill="#bf6b3c"/>
+        <line x1="47.6" y1="47.6" x2="58" y2="58" stroke="#bf6b3c" stroke-width="6" stroke-linecap="round"/>
+      </svg>
+      <span class="name">ExposureCheck</span>
+    </div>
+
+    <div class="mid">
+      <p class="eyebrow">Live-site secret scanner</p>
+      <h1>Is your live site <span class="hl">leaking secrets?</span></h1>
+      <p class="sub">Source maps, exposed <code>.env</code> &amp; <code>.git</code>, keys in your bundle — checked in seconds.</p>
+    </div>
+
+    <div class="foot">
+      <span class="by">A <b>Copper Bay Labs</b> product</span>
+      <div class="pills">
+        <span class="pill">100% client-side</span>
+        <span class="pill">Free · no signup</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

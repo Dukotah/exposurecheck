@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>404 — page not found · ExposureCheck</title>
+<meta name="description" content="That page isn't here. Head back to ExposureCheck and scan your live site for exposed secrets.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#faf8f4">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=1">
+<style>
+  .nf{min-height:64vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:60px 0}
+  .nf .code{font-family:"Fraunces",serif;font-weight:600;font-size:clamp(72px,16vw,140px);line-height:1;letter-spacing:-.03em;color:var(--copper);margin:0}
+  .nf h1{font-size:clamp(26px,4vw,38px);margin:6px 0 12px}
+  .nf p{color:var(--muted);max-width:48ch;margin:0 auto 26px;font-size:clamp(16px,2.2vw,18px)}
+  .nf .mark-lg{width:60px;height:60px;margin:0 auto 18px;display:block}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+
+<header class="masthead" role="banner">
+  <div class="wrap hdr-bar">
+    <a class="brand" href="./" aria-label="ExposureCheck — go to homepage">
+      <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="27" cy="27" r="17" fill="none" stroke="#13525a" stroke-width="3.5"/>
+        <path d="M10 27h34" fill="none" stroke="#13525a" stroke-width="2.6"/>
+        <path d="M27 10c8 7 8 27 0 34c-8-7-8-27 0-34Z" fill="none" stroke="#13525a" stroke-width="2.6"/>
+        <circle cx="38" cy="38" r="13" fill="#faf8f4" stroke="#bf6b3c" stroke-width="4.5"/>
+        <circle cx="38" cy="38" r="3.4" fill="#bf6b3c"/>
+        <line x1="47.6" y1="47.6" x2="58" y2="58" stroke="#bf6b3c" stroke-width="6" stroke-linecap="round"/>
+      </svg>
+      <span class="wordmark">ExposureCheck</span>
+    </a>
+    <nav class="nav" aria-label="Primary navigation">
+      <a href="about.html">How it works</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <section class="nf">
+    <div class="wrap">
+      <svg class="mark-lg" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="27" cy="27" r="17" fill="none" stroke="#13525a" stroke-width="3.5"/>
+        <path d="M10 27h34" fill="none" stroke="#13525a" stroke-width="2.6"/>
+        <path d="M27 10c8 7 8 27 0 34c-8-7-8-27 0-34Z" fill="none" stroke="#13525a" stroke-width="2.6"/>
+        <circle cx="38" cy="38" r="13" fill="#faf8f4" stroke="#bf6b3c" stroke-width="4.5"/>
+        <circle cx="38" cy="38" r="3.4" fill="#bf6b3c"/>
+        <line x1="47.6" y1="47.6" x2="58" y2="58" stroke="#bf6b3c" stroke-width="6" stroke-linecap="round"/>
+      </svg>
+      <p class="code">404</p>
+      <h1>Nothing exposed here</h1>
+      <p>This page doesn’t exist — which, for once, is the good kind of “not found.” Let’s get you back to scanning your live site.</p>
+      <div class="btn-row">
+        <a class="btn primary large" href="./">Back to ExposureCheck</a>
+        <a class="btn large" href="about.html">How it works</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer" role="contentinfo">
+  <div class="wrap foot">
+    <div>
+      <a class="brand small" href="./" aria-label="ExposureCheck — homepage">
+        <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+          <circle cx="27" cy="27" r="17" fill="none" stroke="#cbd2da" stroke-width="3.5"/>
+          <path d="M10 27h34" fill="none" stroke="#cbd2da" stroke-width="2.6"/>
+          <path d="M27 10c8 7 8 27 0 34c-8-7-8-27 0-34Z" fill="none" stroke="#cbd2da" stroke-width="2.6"/>
+          <circle cx="38" cy="38" r="13" fill="none" stroke="#bf6b3c" stroke-width="4.5"/>
+          <circle cx="38" cy="38" r="3.4" fill="#bf6b3c"/>
+          <line x1="47.6" y1="47.6" x2="58" y2="58" stroke="#bf6b3c" stroke-width="6" stroke-linecap="round"/>
+        </svg>
+        <span class="wordmark">ExposureCheck</span>
+      </a>
+      <p class="fine">Heuristic self-check, not a security guarantee. Scan only sites you own.</p>
+    </div>
+    <nav class="foot-nav" aria-label="Footer navigation">
+      <a href="about.html">How it works</a>
+      <a href="https://dukotah.github.io/leakcheck/" target="_blank" rel="noopener noreferrer">LeakCheck</a>
+      <a href="https://dukotah.github.io/shipsafe/" target="_blank" rel="noopener noreferrer">ShipSafe</a>
+    </nav>
+  </div>
+  <div class="wrap">
+    <p class="madeby">A <a href="https://copperbaytech.com" target="_blank" rel="noopener noreferrer">Copper Bay Labs</a> product.</p>
+  </div>
+</footer>
+</body>
+</html>

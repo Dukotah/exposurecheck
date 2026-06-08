@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="ExposureCheck">
+  <!-- globe / live site -->
+  <circle cx="27" cy="27" r="17" fill="none" stroke="#14181f" stroke-width="3.5"/>
+  <path d="M10 27h34" fill="none" stroke="#14181f" stroke-width="2.6"/>
+  <path d="M27 10c8 7 8 27 0 34c-8-7-8-27 0-34Z" fill="none" stroke="#14181f" stroke-width="2.6"/>
+  <path d="M14 18c8 5 18 5 26 0M14 36c8-5 18-5 26 0" fill="none" stroke="#14181f" stroke-width="2.6"/>
+  <!-- magnifier lens over the globe -->
+  <circle cx="38" cy="38" r="13" fill="#faf8f4" stroke="#bf6b3c" stroke-width="4.5"/>
+  <!-- exposure / radar pulse inside the lens -->
+  <circle cx="38" cy="38" r="3.4" fill="#bf6b3c"/>
+  <path d="M38 38l8-8" fill="none" stroke="#bf6b3c" stroke-width="2.4" stroke-linecap="round" opacity=".55"/>
+  <!-- handle -->
+  <line x1="47.6" y1="47.6" x2="58" y2="58" stroke="#bf6b3c" stroke-width="6" stroke-linecap="round"/>
+</svg>

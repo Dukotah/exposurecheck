@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How ExposureCheck works — methodology, ethics & privacy</title>
+<meta name="description" content="How ExposureCheck scans a live site for exposed secrets: source maps, leaked .env / .git, inline API keys and tokens. How the public-proxy fetch works, the authorized-use ethics rules, the privacy stance, and what to do if you find something exposed.">
+<link rel="canonical" href="https://dukotah.github.io/exposurecheck/about.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="ExposureCheck">
+<meta property="og:title" content="How ExposureCheck works — methodology, ethics & privacy">
+<meta property="og:description" content="How ExposureCheck checks a live site for exposed secrets — source maps, leaked .env/.git, inline keys — via a public proxy or paste. Authorized-use only. Plus: how to fix what you find.">
+<meta property="og:url" content="https://dukotah.github.io/exposurecheck/about.html">
+<meta property="og:image" content="https://dukotah.github.io/exposurecheck/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#faf8f4">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"How ExposureCheck works — methodology, ethics & privacy","description":"How ExposureCheck scans a live site for exposed secrets — source maps, leaked .env/.git, inline keys and tokens — how the public-proxy fetch and paste fallback work, its authorized-use ethics rules, the privacy stance, and what to do if you find something exposed.","author":{"@type":"Organization","name":"Copper Bay Labs","url":"https://copperbaytech.com"},"publisher":{"@type":"Organization","name":"Copper Bay Labs","url":"https://copperbaytech.com"},"mainEntityOfPage":"https://dukotah.github.io/exposurecheck/about.html"}
+</script>
+<link rel="stylesheet" href="styles.css?v=1">
+<style>
+  /* about-page extras, built on the base tokens */
+  .doc .lede{font-size:clamp(17px,2.3vw,20px);color:var(--muted)}
+  .doc h2{scroll-margin-top:80px}
+  .doc h3{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:19px;margin:22px 0 6px;letter-spacing:-.01em}
+  .toc{display:flex;flex-wrap:wrap;gap:10px;margin:22px 0 6px;padding:0;list-style:none}
+  .toc a{display:inline-block;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:7px 14px;font-size:14px;font-weight:600;color:var(--muted)}
+  .toc a:hover{border-color:var(--bay);color:var(--ink);text-decoration:none}
+
+  /* checks table */
+  .tbl-wrap{overflow-x:auto;margin:18px 0;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+  table.detect{width:100%;border-collapse:collapse;background:var(--surface);font-size:15px;min-width:620px}
+  table.detect th,table.detect td{text-align:left;padding:12px 16px;border-bottom:1px solid var(--line-2);vertical-align:top}
+  table.detect thead th{font-family:"Hanken Grotesk",sans-serif;font-weight:700;font-size:13px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted-2);background:var(--paper)}
+  table.detect tbody tr:last-child td{border-bottom:none}
+  table.detect code{font-family:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;font-size:13px;background:var(--line-2);padding:2px 6px;border-radius:5px;color:#2c2f36;white-space:nowrap}
+  .sev{display:inline-block;font-weight:700;font-size:12px;letter-spacing:.04em;text-transform:uppercase;padding:3px 9px;border-radius:6px;white-space:nowrap}
+  .sev.crit{background:var(--fail-bg);color:#8f261b}
+  .sev.high{background:var(--high-bg);color:#9a4d12}
+  .sev.med{background:var(--warn-bg);color:#855616}
+  .sev.low{background:var(--pass-bg);color:#256142}
+
+  .callout.warn-callout{background:var(--fail-bg);border-left-color:var(--fail);color:#5e2019}
+  .callout.ethics-callout{background:var(--copper-tint);border-left-color:var(--copper);color:#5a3a22}
+  .steps{margin:18px 0;padding-left:0;list-style:none;counter-reset:step}
+  .steps>li{position:relative;padding:4px 0 16px 46px;counter-increment:step}
+  .steps>li::before{content:counter(step);position:absolute;left:0;top:2px;width:30px;height:30px;border-radius:50%;background:var(--copper);color:#fff;font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;font-family:"Fraunces",serif}
+  .steps>li strong{display:block;margin-bottom:2px}
+  .doc code.inline{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.9em;background:var(--line-2);padding:2px 6px;border-radius:5px}
+  .roadmap-note{background:var(--copper-tint);border-radius:12px;padding:16px 20px;margin:22px 0;border:1px solid #efd9c6}
+  .roadmap-note strong{color:var(--copper-deep)}
+
+  /* sibling-suite cross-link cards */
+  .suite{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:18px 0 6px}
+  .suite a{display:block;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow);transition:box-shadow var(--transition-fast),transform var(--transition-fast),border-color var(--transition-fast)}
+  .suite a:hover{text-decoration:none;box-shadow:var(--shadow-lift);transform:translateY(-2px);border-color:var(--line-2)}
+  .suite .s-name{font-family:"Fraunces",serif;font-weight:600;font-size:17px;color:var(--ink);margin:0 0 4px}
+  .suite .s-name.here{color:var(--copper-deep)}
+  .suite p{color:var(--muted);font-size:14px;margin:0}
+  .suite .s-tag{display:inline-block;margin-bottom:8px;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--bay);background:var(--bay-tint);border:1px solid #cfe1e3;border-radius:6px;padding:2px 8px}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+
+<header class="masthead" role="banner">
+  <div class="wrap hdr-bar">
+    <a class="brand" href="./" aria-label="ExposureCheck — go to homepage">
+      <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="27" cy="27" r="17" fill="none" stroke="#13525a" stroke-width="3.5"/>
+        <path d="M10 27h34" fill="none" stroke="#13525a" stroke-width="2.6"/>
+        <path d="M27 10c8 7 8 27 0 34c-8-7-8-27 0-34Z" fill="none" stroke="#13525a" stroke-width="2.6"/>
+        <circle cx="38" cy="38" r="13" fill="#faf8f4" stroke="#bf6b3c" stroke-width="4.5"/>
+        <circle cx="38" cy="38" r="3.4" fill="#bf6b3c"/>
+        <line x1="47.6" y1="47.6" x2="58" y2="58" stroke="#bf6b3c" stroke-width="6" stroke-linecap="round"/>
+      </svg>
+      <span class="wordmark">ExposureCheck</span>
+    </a>
+    <nav class="nav" aria-label="Primary navigation">
+      <a href="about.html" aria-current="page">How it works</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+<article class="doc">
+  <div class="wrap narrow">
+    <p class="eyebrow" style="text-align:left">Methodology, ethics &amp; privacy</p>
+    <h1>How ExposureCheck works</h1>
+    <p class="lede">ExposureCheck looks at what your <em>live</em> site actually serves to the public internet and flags the things that leak secrets — a published source map, a readable <code class="inline">.env</code>, an exposed <code class="inline">.git</code> folder, an API key baked into your front-end bundle. This page explains exactly how the scan works, what it checks, the rules for using it responsibly, what it does with your data, and what to do the moment you find a real exposure.</p>
+
+    <ul class="toc" aria-label="On this page">
+      <li><a href="#suite">The ship-safety suite</a></li>
+      <li><a href="#how">How the scan works</a></li>
+      <li><a href="#checks">What it checks</a></li>
+      <li><a href="#sourcemaps">Source maps &amp; .env / .git</a></li>
+      <li><a href="#ethics">Ethics &amp; authorized use</a></li>
+      <li><a href="#privacy">Privacy &amp; the proxy</a></li>
+      <li><a href="#disclaimer">Not a full audit</a></li>
+      <li><a href="#fix">I found something exposed</a></li>
+    </ul>
+
+    <h2 id="suite">Part of the Copper Bay Labs ship-safety suite</h2>
+    <p>ExposureCheck is one of three free, client-side checks for people shipping vibe-coded and indie apps. Each looks at a different blast radius — together they answer “did I just ship something that gets me sued, popped, or scraped?”</p>
+    <div class="suite">
+      <a href="https://dukotah.github.io/shipsafe/" target="_blank" rel="noopener noreferrer">
+        <span class="s-tag">Will you get sued?</span>
+        <p class="s-name">ShipSafe</p>
+        <p>ADA / accessibility and privacy-policy gaps that turn into demand letters.</p>
+      </a>
+      <a href="https://dukotah.github.io/leakcheck/" target="_blank" rel="noopener noreferrer">
+        <span class="s-tag">Did you leak in code?</span>
+        <p class="s-name">LeakCheck</p>
+        <p>Paste code, <code class="inline">.env</code>, or config and find exposed API keys before you commit.</p>
+      </a>
+      <a href="./" aria-current="page">
+        <span class="s-tag">Is your live site leaking?</span>
+        <p class="s-name here">ExposureCheck</p>
+        <p>Scans what your deployed site actually serves for exposed secrets. You’re here.</p>
+      </a>
+    </div>
+
+    <h2 id="how">How the scan works</h2>
+    <p>ExposureCheck runs entirely in your browser — there is no ExposureCheck backend. To inspect a live URL, though, your browser can’t read another site’s files directly: the browser’s same-origin policy blocks a page on <code class="inline">exposurecheck</code> from reading raw responses from <code class="inline">yoursite.com</code>. So the tool offers two modes:</p>
+    <ol class="steps">
+      <li><strong>URL mode (via a public CORS proxy).</strong> You give it a URL. ExposureCheck requests that page — and a short list of well-known sensitive paths next to it — through a public, open CORS proxy that adds the cross-origin headers your browser needs. The fetched text comes back into your tab, and all of the actual detection (regex matching, parsing, severity) runs locally on it. Only publicly-served paths are ever requested.</li>
+      <li><strong>Paste mode (fully offline).</strong> Don’t want anything proxied? View source on your own page (or open your built bundle / a suspect file), copy the text, and paste it straight into ExposureCheck. In this mode nothing touches the network at all — it behaves exactly like LeakCheck, scanning the text right there in the tab.</li>
+    </ol>
+    <div class="callout">
+      <strong>The detection is the same in both modes.</strong> The proxy only solves “how do I get the bytes your live site serves into the browser.” Once the text is in the tab, ExposureCheck’s pattern engine — the same masked, <code class="inline">textContent</code>-safe detector family that powers LeakCheck — does all the work locally.
+    </div>
+
+    <h2 id="checks">What ExposureCheck checks</h2>
+    <p>ExposureCheck fetches your page and a handful of conventional sensitive paths, then scans the responses. Severity reflects how dangerous the exposure typically is — a readable <code class="inline">.env</code> or live secret key is <span class="sev crit">Critical</span>, a source map or exposed repo is <span class="sev high">High</span>, a leaky header or risky path is <span class="sev med">Medium</span>, and informational signals are <span class="sev low">Low</span>.</p>
+    <div class="tbl-wrap">
+      <table class="detect">
+        <thead>
+          <tr><th scope="col">Check</th><th scope="col">What it looks for</th><th scope="col">Severity</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Exposed <code>.env</code> file</td><td>A readable <code>/.env</code> (or <code>.env.local</code>, <code>.env.production</code>) served as plain text with keys inside.</td><td><span class="sev crit">Critical</span></td></tr>
+          <tr><td>Exposed <code>.git</code> directory</td><td>A reachable <code>/.git/config</code> or <code>/.git/HEAD</code> — the whole repo (and its history of secrets) can be reconstructed.</td><td><span class="sev crit">Critical</span></td></tr>
+          <tr><td>Secret keys in served files</td><td>Live API keys, tokens, and private keys (AWS, Stripe <code>sk_live_</code>, OpenAI/Anthropic, GitHub, PEM blocks) in the HTML or JS your site serves.</td><td><span class="sev crit">Critical</span></td></tr>
+          <tr><td>Published source maps</td><td><code>//# sourceMappingURL=</code> pointing at a reachable <code>.map</code> that reveals your original, un-minified source.</td><td><span class="sev high">High</span></td></tr>
+          <tr><td>Private keys / credential dumps</td><td><code>-----BEGIN … PRIVATE KEY-----</code> blocks or database URIs with inline credentials in any served file.</td><td><span class="sev high">High</span></td></tr>
+          <tr><td>Backup &amp; dotfile leaks</td><td>Reachable <code>.env.bak</code>, <code>config.json</code>, <code>.DS_Store</code>, <code>.htpasswd</code>, <code>/backup.zip</code>, editor swap files.</td><td><span class="sev high">High</span></td></tr>
+          <tr><td>Server-side keys in front-end</td><td>Secret-side credentials shipped to the browser (e.g. a service-role key or <code>STRIPE_SECRET</code> in client JS) instead of a public/anon key.</td><td><span class="sev high">High</span></td></tr>
+          <tr><td>Information-leaking headers</td><td><code>Server:</code> / <code>X-Powered-By</code> revealing exact stack versions; verbose error pages exposing stack traces or paths.</td><td><span class="sev med">Medium</span></td></tr>
+          <tr><td>Risky exposed paths</td><td>Reachable <code>/admin</code>, <code>/.well-known</code> misconfig, <code>/phpinfo</code>, debug endpoints left enabled.</td><td><span class="sev med">Medium</span></td></tr>
+          <tr><td>Public client keys (informational)</td><td>Publishable / anon keys (<code>pk_live_</code>, public Firebase config) that are meant to be public but flag the area for review.</td><td><span class="sev low">Low</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="fine" style="color:var(--muted-2)">The exact check set evolves; treat this table as representative, not exhaustive. Severities are defaults reflecting typical blast radius, not your specific setup.</p>
+
+    <h2 id="sourcemaps">Source maps, exposed <code>.env</code>, and exposed <code>.git</code></h2>
+    <p>Three of these deserve their own explanation, because they’re the ones people are most surprised to learn about.</p>
+
+    <h3>Published source maps</h3>
+    <p>When your build tool minifies JavaScript, it can also emit a <code class="inline">.map</code> file and append a comment like <code class="inline">//# sourceMappingURL=app.js.map</code> to the bundle. That map is for debugging — but if it’s deployed and reachable, anyone can download it and reconstruct your <em>original</em> source: variable names, comments, file structure, and any secret or internal logic that was sitting in the code before minification “hid” it. Minification is not security. ExposureCheck flags a source map that’s actually fetchable so you can stop publishing it (or strip the <code class="inline">sourceMappingURL</code> comment) in production.</p>
+
+    <h3>Exposed <code>.env</code></h3>
+    <p>A <code class="inline">.env</code> file holds exactly the things that must never be public — database passwords, API secret keys, signing secrets. It’s supposed to stay on the server and be read at runtime, never served to a browser. But a misconfigured static host or webroot will sometimes serve <code class="inline">/.env</code> as plain text to anyone who asks. Bots scan for this constantly. If ExposureCheck can fetch your <code class="inline">.env</code> over HTTP, so can an attacker — treat every value in it as already compromised.</p>
+
+    <h3>Exposed <code>.git</code> directory</h3>
+    <p>If you deployed by copying your whole project folder (including the hidden <code class="inline">.git</code> directory) to the webroot, the server may be serving <code class="inline">/.git/</code>. From files like <code class="inline">/.git/config</code> and <code class="inline">/.git/HEAD</code>, an attacker can clone your <em>entire</em> repository and its full commit history — including any secret you ever committed and later “removed.” ExposureCheck checks whether those tell-tale paths respond, because a reachable <code class="inline">.git</code> is one of the highest-value leaks on the web.</p>
+
+    <h2 id="ethics">Ethics &amp; authorized use</h2>
+    <div class="callout ethics-callout">
+      <strong>Only scan sites you own or have explicit permission to test.</strong> ExposureCheck is a defensive self-check — a way to look at your <em>own</em> deployment the way the public already can. It is <strong>not</strong> a penetration-testing tool, and it must not be pointed at someone else’s site.
+    </div>
+    <p>We mean this literally, and the design backs it up:</p>
+    <ul>
+      <li><strong>It only requests publicly-served paths.</strong> ExposureCheck performs ordinary, unauthenticated <code class="inline">GET</code> requests for conventional file locations — the exact same requests your browser makes when it loads a page. It does not log in, brute-force, fuzz, send payloads, attempt exploits, or try to access anything that isn’t already being served to the open internet.</li>
+      <li><strong>It’s a self-check, not an attack.</strong> The whole point is to show you what your own site is already handing out, so you can close the gap before someone with worse intentions finds it. Run it on your domain, on staging, on a client’s site you’ve been hired to secure — not on a stranger’s.</li>
+      <li><strong>Permission is your responsibility.</strong> Scanning infrastructure you don’t own or aren’t authorized to test can be unlawful in your jurisdiction regardless of how gentle the requests are. By using URL mode you confirm you have the right to test the target. When in doubt, use <strong>paste mode</strong> on output you’ve viewed yourself.</li>
+    </ul>
+
+    <h2 id="privacy">Privacy &amp; the public proxy</h2>
+    <p>ExposureCheck stores <strong>nothing</strong>. There is no account, no database, no analytics on your input, no logging of what you scan. Results live only in the current tab and vanish on reload. But because URL mode has to fetch a cross-origin site, we want to be completely straight with you about the one network hop involved:</p>
+    <ul>
+      <li><strong>Paste mode is fully local.</strong> Nothing leaves your browser — identical to LeakCheck. If privacy is paramount, prefer this mode.</li>
+      <li><strong>URL mode routes the target through a public CORS proxy.</strong> To read your live site’s files, your browser sends the target URL (and the sensitive paths it derives from it) to a third-party open proxy that re-requests them with cross-origin headers. That means <em>the proxy operator can see which URL you asked it to fetch.</em> We disclose this openly. We don’t send your input anywhere ourselves, and the actual secret-detection runs locally on the returned text — but the fetch itself is not private from the proxy.</li>
+      <li><strong>The scan results stay in your tab.</strong> Whatever ExposureCheck finds — the masked matches, the severities — is rendered locally and never transmitted. Like LeakCheck, every detected secret is <strong>masked</strong> (first/last few characters only) before it ever touches the screen, so a screenshot or screen-share doesn’t releak the very thing you’re checking for.</li>
+    </ul>
+    <div class="callout">
+      <strong>The honest trade-off.</strong> URL mode is convenient but passes the target through a public proxy you don’t control; paste mode is completely private but you fetch the bytes yourself. Pick the one that matches how sensitive the target is.
+    </div>
+
+    <h2 id="disclaimer">This is a heuristic self-check — not a full security audit</h2>
+    <div class="callout warn-callout">
+      <strong>Important:</strong> ExposureCheck is a fast heuristic scanner of publicly-served content, <strong>not a security guarantee, certification, or audit.</strong> A clean result does not mean your site is secure, and a flagged result does not always mean a real exposure.
+    </div>
+    <p>Like every pattern-based scanner it can produce both kinds of error:</p>
+    <ul>
+      <li><strong>False negatives.</strong> It only sees the handful of paths it checks and the responses it can fetch. Secrets behind auth, in unusual locations, in formats it doesn’t recognize, or blocked by the proxy can slip past unflagged.</li>
+      <li><strong>False positives.</strong> Example keys, public-by-design tokens, hashes, and test fixtures can look like real exposures when they aren’t.</li>
+    </ul>
+    <p>Use ExposureCheck as a quick first pass on your deployment, not the final word. A real audit considers your architecture, server config, dependencies, access controls, and threat model — none of which a surface scan can see. If you need that level of assurance, <a href="https://copperbaytech.com" target="_blank" rel="noopener noreferrer">talk to Copper Bay Labs</a>.</p>
+
+    <h2 id="fix">I found something exposed — fix it now</h2>
+    <p>If a real exposure is confirmed, assume it’s already been found by a bot and act fast. Work the checklist top to bottom:</p>
+    <ol class="steps">
+      <li><strong>Rotate every exposed credential immediately.</strong> Go to each provider’s dashboard and revoke or regenerate any key, token, or password that was reachable. Rotation is the only action that actually stops abuse — removing the file does not undo the exposure that already happened.</li>
+      <li><strong>Remove the file from the deploy.</strong> Take the leaking artifact out of your published output entirely — the <code class="inline">.env</code>, the <code class="inline">.git</code> directory, the source map, the backup zip. It should never have been in the webroot.</li>
+      <li><strong>Move secrets to env vars / a secret manager.</strong> Load credentials at runtime from environment variables or a real secret manager (AWS Secrets Manager, GCP Secret Manager, Vault, Doppler, your platform’s vault) — never from a file the web server can serve.</li>
+      <li><strong>Fix <code class="inline">.gitignore</code> and your build.</strong> Add <code class="inline">.env*</code> and other secret files to <code class="inline">.gitignore</code>, disable source maps in production (or stop deploying the <code class="inline">.map</code>), and make sure your deploy step copies built output only — not your whole project folder with <code class="inline">.git</code> inside.</li>
+      <li><strong>Redeploy and re-verify.</strong> Push the corrected build, then re-run ExposureCheck (or just request the path yourself) to confirm the file now returns 404/403 and the secret is gone from what’s served.</li>
+      <li><strong>Scrub git history.</strong> A secret that ever sat in a commit lives in history forever. Rewrite it with <a href="https://github.com/newren/git-filter-repo" target="_blank" rel="noopener noreferrer"><code class="inline">git filter-repo</code></a> or <a href="https://rtyley.github.io/bfg-repo-cleaner/" target="_blank" rel="noopener noreferrer">BFG Repo-Cleaner</a>, force-push, and have collaborators re-clone. Remember forks and PRs may still carry it.</li>
+    </ol>
+    <div class="callout">
+      <strong>Order matters.</strong> Rotate <em>first</em>. Pulling the file and cleaning history is essential hygiene, but it does nothing for a key that’s already been scraped. Revoking access is what actually closes the door.
+    </div>
+
+    <p style="margin-top:30px"><a class="btn primary" href="./">Scan your site now</a></p>
+  </div>
+</article>
+</main>
+
+<footer class="footer" role="contentinfo">
+  <div class="wrap foot">
+    <div>
+      <a class="brand small" href="./" aria-label="ExposureCheck — homepage">
+        <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+          <circle cx="27" cy="27" r="17" fill="none" stroke="#cbd2da" stroke-width="3.5"/>
+          <path d="M10 27h34" fill="none" stroke="#cbd2da" stroke-width="2.6"/>
+          <path d="M27 10c8 7 8 27 0 34c-8-7-8-27 0-34Z" fill="none" stroke="#cbd2da" stroke-width="2.6"/>
+          <circle cx="38" cy="38" r="13" fill="none" stroke="#bf6b3c" stroke-width="4.5"/>
+          <circle cx="38" cy="38" r="3.4" fill="#bf6b3c"/>
+          <line x1="47.6" y1="47.6" x2="58" y2="58" stroke="#bf6b3c" stroke-width="6" stroke-linecap="round"/>
+        </svg>
+        <span class="wordmark">ExposureCheck</span>
+      </a>
+      <p class="fine">Heuristic self-check, not a security guarantee. Scan only sites you own.</p>
+    </div>
+    <nav class="foot-nav" aria-label="Footer navigation">
+      <a href="about.html">How it works</a>
+      <a href="https://dukotah.github.io/leakcheck/" target="_blank" rel="noopener noreferrer">LeakCheck</a>
+      <a href="https://dukotah.github.io/shipsafe/" target="_blank" rel="noopener noreferrer">ShipSafe</a>
+      <a href="https://copperbaytech.com" target="_blank" rel="noopener noreferrer">Secure my project &rarr;</a>
+    </nav>
+  </div>
+  <div class="wrap">
+    <p class="madeby">A <a href="https://copperbaytech.com" target="_blank" rel="noopener noreferrer">Copper Bay Labs</a> product.</p>
+  </div>
+</footer>
+</body>
+</html>

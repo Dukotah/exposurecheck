@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ExposureCheck — apple-touch-icon template (180×180)</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{background:#5a6470}
+  /* Capture this 180x180 node and export as apple-touch-icon.png */
+  .icon{
+    width:180px;height:180px;position:relative;overflow:hidden;
+    background:#bf6b3c;
+    display:flex;align-items:center;justify-content:center;
+    border-radius:0; /* iOS applies its own mask; keep square + full-bleed */
+  }
+  .icon svg{width:124px;height:124px}
+</style>
+</head>
+<body>
+  <div class="icon" id="icon">
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <!-- globe: ink lines on copper -->
+      <circle cx="27" cy="27" r="17" fill="none" stroke="#14181f" stroke-width="3.5"/>
+      <path d="M10 27h34" fill="none" stroke="#14181f" stroke-width="2.6"/>
+      <path d="M27 10c8 7 8 27 0 34c-8-7-8-27 0-34Z" fill="none" stroke="#14181f" stroke-width="2.6"/>
+      <!-- magnifier lens: white fill, ink ring -->
+      <circle cx="38" cy="38" r="13" fill="#ffffff" stroke="#14181f" stroke-width="4.5"/>
+      <circle cx="38" cy="38" r="3.4" fill="#14181f"/>
+      <!-- handle: white -->
+      <line x1="47.6" y1="47.6" x2="58" y2="58" stroke="#ffffff" stroke-width="6.5" stroke-linecap="round"/>
+    </svg>
+  </div>
+</body>
+</html>

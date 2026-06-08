@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ExposureCheck — is your live site leaking secrets?</title>
+<meta name="description" content="Scan your deployed site for exposed .env files, public .git folders, leaked source maps, and hardcoded API keys in your bundle, flagged by severity. A defensive self-check that runs in your browser. Free, no signup.">
+<link rel="canonical" href="https://dukotah.github.io/exposurecheck/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ExposureCheck">
+<meta property="og:title" content="ExposureCheck — is your live site leaking secrets?">
+<meta property="og:description" content="Scan your deployed site for exposed .env, public .git, source maps, and hardcoded API keys, flagged by severity. A defensive self-check that runs in your browser.">
+<meta property="og:url" content="https://dukotah.github.io/exposurecheck/">
+<meta property="og:image" content="https://dukotah.github.io/exposurecheck/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#faf8f4">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"ExposureCheck","applicationCategory":"SecurityApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"description":"Free defensive self-check that scans your deployed site for exposed .env files, public .git folders, leaked source maps, and hardcoded API keys in your bundle.","publisher":{"@type":"Organization","name":"Copper Bay Labs","url":"https://copperbaytech.com"}}
+</script>
+<link rel="stylesheet" href="styles.css?v=1">
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+
+<header class="masthead" role="banner">
+  <div class="wrap hdr-bar">
+    <a class="brand" href="./" aria-label="ExposureCheck — go to homepage">
+      <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M32 4 54 12v18c0 14-9 24-22 30C19 54 10 44 10 30V12L32 4Z" fill="none" stroke="#13525a" stroke-width="4" stroke-linejoin="round"/>
+        <path d="M22 30v-5a10 10 0 0 1 20 0v5" fill="none" stroke="#bf6b3c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="19" y="30" width="26" height="18" rx="3" fill="none" stroke="#bf6b3c" stroke-width="4"/>
+      </svg>
+      <span class="wordmark">ExposureCheck</span>
+    </a>
+    <nav class="nav" aria-label="Primary navigation">
+      <a href="about.html">How it works</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+  <section class="hero">
+    <div class="wrap">
+      <p class="eyebrow">Live-site exposure scanner</p>
+      <h1>Is your deployed site leaking secrets?</h1>
+      <p class="lede">Vibe-coded and rushed deploys constantly ship <strong>.env files, <code>.git</code> folders, source maps, and hardcoded API keys</strong> straight to production — where anyone with a browser can grab them. Point ExposureCheck at your live URL and find out <strong>before someone else does</strong>.</p>
+
+      <form id="scan-form" class="scanner" novalidate>
+        <div class="code-tool">
+          <div class="code-toolbar">
+            <span class="tb-label">Scan a live URL</span>
+            <button type="button" id="paste-toggle" class="tb-btn" aria-expanded="false" aria-controls="paste-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/></svg>
+              Paste HTML/JS instead
+            </button>
+          </div>
+
+          <div class="url-row">
+            <label class="sr-only" for="url">Your live site URL</label>
+            <span class="url-prefix" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
+            </span>
+            <input id="url" name="url" class="url-input" type="url" inputmode="url" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="https://your-site.com" aria-describedby="trust-line safety-note">
+          </div>
+
+          <div id="paste-wrap" class="paste-wrap" hidden>
+            <label class="code-label" for="paste">Paste your built HTML/JS instead</label>
+            <textarea id="paste" name="paste" class="code-input" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" wrap="off" placeholder="Paste your built HTML or bundled JS here&hellip; (no URL fetch — scanned locally)"></textarea>
+          </div>
+        </div>
+
+        <p class="safety-note" id="safety-note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg>
+          <span><strong>Only scan sites you own or are authorized to test.</strong> ExposureCheck only fetches paths a public visitor could already reach — it's a defensive self-check, not an attack tool.</span>
+        </p>
+
+        <div class="scan-actions">
+          <button type="submit" id="scan-btn" class="btn primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            Scan my site
+          </button>
+          <button type="button" id="example-btn" class="btn">Try an example</button>
+          <button type="button" id="clear-btn" class="btn ghost">Clear</button>
+        </div>
+
+        <p class="trust-badge" id="trust-line">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          <span><strong>Runs in your browser.</strong> We don't store your URL or results. No signup.</span>
+        </p>
+      </form>
+    </div>
+  </section>
+
+  <section id="results" class="results" hidden tabindex="-1" aria-label="Scan results">
+    <!-- app.js fills this and injects the "Copy report" #copy-btn into the results head -->
+  </section>
+
+  <section class="detect">
+    <div class="wrap">
+      <p class="eyebrow">What we check</p>
+      <h2 class="detect-title">The leaks visitors can already see</h2>
+      <p class="detect-sub">ExposureCheck probes the paths attackers hit first and reads what your bundle actually ships to the browser — the exposures that turn a quick deploy into an incident.</p>
+      <ul class="detect-grid">
+        <li class="feature"><span class="feat-icon" aria-hidden="true">env</span><div><h3>Exposed .env &amp; config</h3><p>Publicly reachable <code>.env</code>, <code>.env.production</code>, and config files served by mistake.</p></div></li>
+        <li class="feature"><span class="feat-icon" aria-hidden="true">git</span><div><h3>Public .git folder</h3><p>A reachable <code>/.git/</code> lets anyone reconstruct your entire source history.</p></div></li>
+        <li class="feature"><span class="feat-icon" aria-hidden="true">map</span><div><h3>Source maps</h3><p>Shipped <code>.map</code> files that hand your original, unminified source to the world.</p></div></li>
+        <li class="feature"><span class="feat-icon" aria-hidden="true">key</span><div><h3>Hardcoded API keys</h3><p>Live tokens baked into your client bundle — AWS, Stripe, OpenAI, Google &amp; more.</p></div></li>
+        <li class="feature"><span class="feat-icon" aria-hidden="true">api</span><div><h3>Leaked internal endpoints</h3><p>Admin, staging, and internal URLs left visible in your front-end code.</p></div></li>
+        <li class="feature"><span class="feat-icon" aria-hidden="true">hdr</span><div><h3>Security headers</h3><p>A best-effort check for missing baseline response headers on your site.</p></div></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="steps">
+    <div class="wrap">
+      <p class="eyebrow">How it works</p>
+      <h2 class="steps-title">Three steps, your own site</h2>
+      <ol class="step-grid">
+        <li class="step">
+          <span class="step-num" aria-hidden="true">1</span>
+          <h3>Enter your URL</h3>
+          <p>Drop in the live address of a site you own or are authorized to test — or paste your built HTML/JS to skip the fetch entirely.</p>
+        </li>
+        <li class="step">
+          <span class="step-num" aria-hidden="true">2</span>
+          <h3>Public paths checked</h3>
+          <p>We fetch only what a normal visitor could already reach and scan the bundle for keys, source maps, and exposed config — all in your browser.</p>
+        </li>
+        <li class="step">
+          <span class="step-num" aria-hidden="true">3</span>
+          <h3>Masked findings + how to fix</h3>
+          <p>Every exposure is shown by severity with the value masked and concrete remediation, so you can lock it down fast.</p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="suite-band">
+    <div class="wrap">
+      <div class="section-head">
+        <p class="eyebrow">The ship-safety suite</p>
+        <h2>Three checks before you ship</h2>
+        <p>ExposureCheck is part of <a href="https://copperbaytech.com" target="_blank" rel="noopener noreferrer">Copper Bay Labs</a>' ship-safety suite for vibe-coded and indie apps. Run all three before you go live.</p>
+      </div>
+      <ul class="suite-grid">
+        <li class="suite-card">
+          <span class="feat-icon" aria-hidden="true">src</span>
+          <h3 class="suite-name">LeakCheck</h3>
+          <p>Did you leak a secret in your <strong>source code</strong>? Paste code, <code>.env</code>, or config and catch hardcoded keys before you commit.</p>
+          <a class="suite-cta" href="https://dukotah.github.io/leakcheck/" target="_blank" rel="noopener noreferrer">Scan your source code &rarr;</a>
+        </li>
+        <li class="suite-card is-current" aria-current="page">
+          <span class="feat-icon" aria-hidden="true">live</span>
+          <h3 class="suite-name">ExposureCheck <span class="pill">You're here</span></h3>
+          <p>Is your <strong>live site</strong> leaking? Probe the deployed URL for exposed .env, public .git, source maps, and bundled keys.</p>
+          <span class="suite-cta muted">This tool</span>
+        </li>
+        <li class="suite-card">
+          <span class="feat-icon" aria-hidden="true">law</span>
+          <h3 class="suite-name">ShipSafe</h3>
+          <p>Will you get <strong>sued</strong>? Check your site for ADA accessibility and privacy-policy risk before customers (or lawyers) arrive.</p>
+          <a class="suite-cta" href="https://dukotah.github.io/shipsafe/" target="_blank" rel="noopener noreferrer">Check ADA &amp; privacy risk &rarr;</a>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="faq">
+    <div class="wrap narrow">
+      <p class="eyebrow">FAQ</p>
+      <h2 class="faq-title">Questions, answered</h2>
+
+      <details>
+        <summary>Is this an attack tool?</summary>
+        <p><strong>No.</strong> ExposureCheck is a defensive self-check for <em>your own</em> site. It only requests paths a public visitor could already reach — the same <code>.env</code>, <code>.git</code>, source-map, and bundle URLs a browser or crawler would hit. It never probes for vulnerabilities, never brute-forces, and never touches anything that isn't already publicly served. Only scan sites you own or are explicitly authorized to test.</p>
+      </details>
+
+      <details>
+        <summary>How does it scan another domain from my browser?</summary>
+        <p>Browsers block one site from fetching another (the same-origin policy), so for URL mode ExposureCheck routes its requests through a <strong>public CORS proxy</strong> that fetches the page and passes the bytes back to your tab for local scanning. That proxy is a third party that can see the URL it fetches, and it can't reach pages behind a login or a private network. If a fetch fails or you'd rather not use a proxy, use <strong>paste mode</strong> — drop in your built HTML/JS and everything stays in your browser with no network call at all.</p>
+      </details>
+
+      <details>
+        <summary>Do you store anything?</summary>
+        <p>No. Nothing is persisted. Your URL, the fetched content, and the results live only in this tab's memory and disappear the moment you close or reload the page. There's no database, no analytics on your content, and no signup. (In URL mode the public CORS proxy briefly handles your URL to fetch it — see the question above.)</p>
+      </details>
+
+      <details>
+        <summary>It couldn't fetch my site — why?</summary>
+        <p>URL mode depends on a public CORS proxy, which has limits: it can be rate-limited or down, it can't reach pages behind authentication or on a private network, and some hosts block proxy traffic. When that happens, switch to <strong>paste mode</strong> — open your deployed page, view source or grab your built bundle, and paste the HTML/JS in. The same detectors run locally with no fetch required.</p>
+      </details>
+
+      <details>
+        <summary>A secret showed up — what now?</summary>
+        <p><strong>Rotate it immediately</strong> in the provider's dashboard so the exposed value stops working. Then remove it from the deploy: pull the literal out of your built output, move it to an environment variable or secret manager, and make sure the file (<code>.env</code>, config, source maps) is in your <code>.gitignore</code> and excluded from your production build. Finally, scrub it from git history with <code>git filter-repo</code> or BFG and force-push — anything that has been public should be treated as already harvested.</p>
+      </details>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer" role="contentinfo">
+  <div class="wrap foot">
+    <div>
+      <a class="brand small" href="./" aria-label="ExposureCheck — homepage">
+        <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M32 4 54 12v18c0 14-9 24-22 30C19 54 10 44 10 30V12L32 4Z" fill="none" stroke="#cbd2da" stroke-width="4" stroke-linejoin="round"/>
+          <path d="M22 30v-5a10 10 0 0 1 20 0v5" fill="none" stroke="#bf6b3c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="19" y="30" width="26" height="18" rx="3" fill="none" stroke="#bf6b3c" stroke-width="4"/>
+        </svg>
+        <span class="wordmark">ExposureCheck</span>
+      </a>
+      <p class="fine">Best-effort, public-path self-check — not a security guarantee.</p>
+    </div>
+    <nav class="foot-nav" aria-label="Footer navigation">
+      <a href="about.html">How it works</a>
+      <a href="https://dukotah.github.io/leakcheck/" target="_blank" rel="noopener noreferrer">LeakCheck</a>
+      <a href="https://dukotah.github.io/shipsafe/" target="_blank" rel="noopener noreferrer">ShipSafe</a>
+      <a href="https://copperbaytech.com" target="_blank" rel="noopener noreferrer">Secure my project &rarr;</a>
+    </nav>
+  </div>
+  <div class="wrap">
+    <p class="madeby">A <a href="https://copperbaytech.com" target="_blank" rel="noopener noreferrer">Copper Bay Labs</a> product.</p>
+  </div>
+</footer>
+
+<script src="app.js?v=1"></script>
+</body>
+</html>
