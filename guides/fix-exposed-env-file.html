@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to Fix an Exposed .env File — Step-by-Step Remediation</title>
+<meta name="description" content="Found your .env file publicly accessible? This step-by-step guide covers the exact remediation order: rotate credentials first, remove the file, fix server config for Nginx, Apache, Vercel, and Netlify, clean git history, and verify the fix is working.">
+<link rel="canonical" href="https://labs.copperbaytech.com/exposurecheck/guides/fix-exposed-env-file.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="ExposureCheck">
+<meta property="og:title" content="How to Fix an Exposed .env File — Step-by-Step Remediation">
+<meta property="og:description" content="Found your .env publicly accessible? Rotate credentials first, then remove the file, fix your server config, clean git history, and verify with ExposureCheck.">
+<meta property="og:url" content="https://labs.copperbaytech.com/exposurecheck/guides/fix-exposed-env-file.html">
+<meta property="og:image" content="https://labs.copperbaytech.com/exposurecheck/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#faf8f4">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"How to Fix an Exposed .env File — Step-by-Step Remediation","description":"Step-by-step remediation guide for an exposed .env file: rotate credentials immediately, remove the file from public access, fix server configuration for Nginx, Apache, Netlify, Vercel, and GitHub Pages, scrub git history, and verify the fix is working.","author":{"@type":"Organization","name":"Copper Bay Labs","url":"https://copperbaytech.com"},"publisher":{"@type":"Organization","name":"Copper Bay Labs","url":"https://copperbaytech.com"},"datePublished":"2026-06-11","dateModified":"2026-06-11","mainEntityOfPage":"https://labs.copperbaytech.com/exposurecheck/guides/fix-exposed-env-file.html"}
+</script>
+<link rel="stylesheet" href="../styles.css?v=1">
+<style>
+  .doc .lede{font-size:clamp(17px,2.3vw,20px);color:var(--muted)}
+  .doc h2{scroll-margin-top:80px}
+  .doc h3{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:19px;margin:22px 0 6px;letter-spacing:-.01em}
+  .toc{display:flex;flex-wrap:wrap;gap:10px;margin:22px 0 6px;padding:0;list-style:none}
+  .toc a{display:inline-block;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:7px 14px;font-size:14px;font-weight:600;color:var(--muted)}
+  .toc a:hover{border-color:var(--bay);color:var(--ink);text-decoration:none}
+  .callout.warn-callout{background:var(--fail-bg);border-left-color:var(--fail);color:#5e2019}
+  .callout.tip-callout{background:var(--pass-bg);border-left-color:var(--pass);color:#1b4d30}
+  .steps{margin:18px 0;padding-left:0;list-style:none;counter-reset:step}
+  .steps>li{position:relative;padding:4px 0 20px 46px;counter-increment:step}
+  .steps>li::before{content:counter(step);position:absolute;left:0;top:2px;width:30px;height:30px;border-radius:50%;background:var(--copper);color:#fff;font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;font-family:"Fraunces",serif}
+  .steps>li strong{display:block;margin-bottom:4px}
+  .doc code.inline{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.9em;background:var(--line-2);padding:2px 6px;border-radius:5px}
+  pre{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;overflow-x:auto;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.6;margin:12px 0}
+  pre code{background:none;padding:0;font-size:inherit}
+  .platform-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin:18px 0}
+  .platform-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+  .platform-card h3{margin:0 0 8px;font-size:16px;font-family:"Fraunces",Georgia,serif;font-weight:600}
+  .platform-card p{font-size:14px;color:var(--muted);margin:8px 0 0}
+  .platform-card pre{margin:10px 0 0;font-size:12.5px}
+  .suite{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:18px 0 6px}
+  .suite a{display:block;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow);transition:box-shadow .15s,transform .15s,border-color .15s}
+  .suite a:hover{text-decoration:none;box-shadow:var(--shadow-lift);transform:translateY(-2px);border-color:var(--line-2)}
+  .suite .s-name{font-family:"Fraunces",serif;font-weight:600;font-size:17px;color:var(--ink);display:block;margin:0 0 4px}
+  .suite p{color:var(--muted);font-size:14px;margin:0}
+  .suite .s-tag{display:inline-block;margin-bottom:8px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--bay);background:var(--bay-tint,#e8f4f6);border:1px solid #cfe1e3;border-radius:6px;padding:2px 8px}
+  .faq-section{margin:18px 0}
+  .faq-section details{border-bottom:1px solid var(--line);padding:14px 0}
+  .faq-section details:first-child{border-top:1px solid var(--line)}
+  .faq-section summary{font-weight:600;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .faq-section summary::-webkit-details-marker{display:none}
+  .faq-section summary::after{content:"+";font-size:20px;color:var(--muted);flex-shrink:0}
+  .faq-section details[open] summary::after{content:"\2212"}
+  .faq-section details p,.faq-section details ul{margin:12px 0 4px;color:var(--muted)}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+
+<header class="masthead" role="banner">
+  <div class="wrap hdr-bar">
+    <a class="brand" href="../" aria-label="ExposureCheck — go to homepage">
+      <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M32 4 54 12v18c0 14-9 24-22 30C19 54 10 44 10 30V12L32 4Z" fill="none" stroke="#13525a" stroke-width="4" stroke-linejoin="round"/>
+        <path d="M22 30v-5a10 10 0 0 1 20 0v5" fill="none" stroke="#bf6b3c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="19" y="30" width="26" height="18" rx="3" fill="none" stroke="#bf6b3c" stroke-width="4"/>
+      </svg>
+      <span class="wordmark">ExposureCheck</span>
+    </a>
+    <nav class="nav" aria-label="Primary navigation">
+      <a href="../about.html">How it works</a>
+      <a href="../">Scan your site</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+<article class="doc">
+  <div class="wrap narrow">
+    <p class="eyebrow" style="text-align:left">Remediation guide</p>
+    <h1>How to fix an exposed <code class="inline">.env</code> file</h1>
+    <p class="lede">If your <code class="inline">.env</code> file is reachable at a URL like <code class="inline">https://your-site.com/.env</code>, treat it as an active incident. Automated scanners continuously probe for this path and will scrape credentials within minutes of them going live. This guide gives you the exact steps, in the right order, to stop the bleeding and prevent it from recurring.</p>
+
+    <div class="callout warn-callout">
+      <strong>Act first, read later.</strong> The only action that actually cuts off access is rotating your credentials — not removing the file, not cleaning git, not redeploying. If you're in triage right now, jump to <a href="#rotate" style="color:inherit;text-decoration:underline">Step 1</a> immediately.
+    </div>
+
+    <ul class="toc" aria-label="On this page">
+      <li><a href="#how-it-happens">How it happens</a></li>
+      <li><a href="#rotate">Step 1: Rotate credentials</a></li>
+      <li><a href="#remove">Step 2: Remove the file</a></li>
+      <li><a href="#server-config">Step 3: Block it server-side</a></li>
+      <li><a href="#git-history">Step 4: Scrub git history</a></li>
+      <li><a href="#verify">Step 5: Verify the fix</a></li>
+      <li><a href="#prevention">Prevention</a></li>
+      <li><a href="#faq">FAQ</a></li>
+    </ul>
+
+    <h2 id="how-it-happens">How a .env file ends up publicly accessible</h2>
+    <p>The most common root causes:</p>
+    <ul>
+      <li><strong>Deploying the entire project root.</strong> You copied or pushed your whole project directory — including the <code class="inline">.env</code> — to the webserver or static host. The server serves every file it can find unless explicitly configured otherwise.</li>
+      <li><strong>Misconfigured static hosting.</strong> Platforms like GitHub Pages, Netlify, and Vercel serve everything in the directory or branch they're pointed at. If <code class="inline">.env</code> is in that directory, it becomes public.</li>
+      <li><strong>File committed to git.</strong> The <code class="inline">.env</code> was accidentally committed and pushed to the repo powering a deploy-from-repo setup, so it was served alongside your code.</li>
+      <li><strong>FTP / shared hosting deployment.</strong> An FTP client uploaded all files in the project folder, including dotfiles the developer never noticed.</li>
+    </ul>
+
+    <h2 id="rotate">Step 1: Rotate every exposed credential immediately</h2>
+    <p>Do this before anything else. Removing the file does not help a key that has already been scraped — and you should assume it has been. Rotation is the only action that actually invalidates a stolen credential.</p>
+    <p>Go to each provider's dashboard and revoke or regenerate every secret that appeared in the exposed file:</p>
+    <ul>
+      <li><strong>AWS</strong> — IAM console → Users → Security credentials → Delete the compromised access key, create a new one. If it was a root account key, revoke it immediately and create an IAM user instead.</li>
+      <li><strong>OpenAI / Anthropic</strong> — Platform dashboard → API keys → Delete the old key, generate a replacement.</li>
+      <li><strong>Stripe</strong> — Dashboard → Developers → API keys → Roll the secret key (the <code class="inline">sk_live_</code> or <code class="inline">sk_test_</code> value).</li>
+      <li><strong>GitHub tokens</strong> — Settings → Developer settings → Personal access tokens → Revoke the token, create a new scoped one.</li>
+      <li><strong>Supabase</strong> — Project Settings → API → Reset the <code class="inline">service_role</code> key. The <code class="inline">anon</code> key is designed to be public, but reset it too if in doubt.</li>
+      <li><strong>Database URLs with passwords</strong> — Reset the password for the database user referenced in the connection string, then update the URL everywhere it's used (other services, CI/CD secrets, other env files).</li>
+      <li><strong>Any other service</strong> — Follow the same pattern: revoke first, create a new credential, update all references.</li>
+    </ul>
+    <div class="callout tip-callout">
+      <strong>Don't forget CI/CD and downstream services.</strong> After rotating, update every place the old credentials were referenced — GitHub Actions secrets, hosting platform environment variables, third-party integrations. A rotated key you forgot to deploy is just a new outage.
+    </div>
+
+    <h2 id="remove">Step 2: Remove the .env from your deployment</h2>
+    <p>With credentials rotated, remove the file from what your server is serving.</p>
+    <ul>
+      <li><strong>Static hosts (Netlify, Vercel, Cloudflare Pages, GitHub Pages):</strong> Remove <code class="inline">.env</code> from the repository branch or build output directory the platform is serving, then trigger a fresh deploy.</li>
+      <li><strong>VPS / shared hosting:</strong> Delete the file from the webroot directly (<code class="inline">rm /var/www/html/.env</code>) and redeploy from a clean source.</li>
+    </ul>
+    <p>At the same time, move your secrets off the filesystem permanently. Every major hosting platform has a built-in environment variable UI — use it. Your application code reads from <code class="inline">process.env</code>, <code class="inline">os.environ</code>, or equivalent at runtime, and the credentials never touch a file that the web server might serve.</p>
+
+    <h2 id="server-config">Step 3: Block .env access at the server level</h2>
+    <p>Even after the file is gone, add an explicit server-level block. This is defense-in-depth: it prevents a future deploy mistake from re-exposing the file.</p>
+    <div class="platform-grid">
+      <div class="platform-card">
+        <h3>Nginx</h3>
+        <pre><code>location ~ /\.env {
+    deny all;
+    return 404;
+}</code></pre>
+        <p>Add to your <code class="inline">server {}</code> block and reload Nginx.</p>
+      </div>
+      <div class="platform-card">
+        <h3>Apache (.htaccess)</h3>
+        <pre><code>&lt;FilesMatch "^\.env"&gt;
+  Order allow,deny
+  Deny from all
+&lt;/FilesMatch&gt;</code></pre>
+        <p>Works for <code class="inline">.env</code>, <code class="inline">.env.local</code>, <code class="inline">.env.production</code>, etc.</p>
+      </div>
+      <div class="platform-card">
+        <h3>Netlify (_redirects)</h3>
+        <pre><code>/.env    /404    404
+/.env.*  /404    404</code></pre>
+        <p>Add these lines to your <code class="inline">_redirects</code> file in the publish directory.</p>
+      </div>
+      <div class="platform-card">
+        <h3>Vercel (vercel.json)</h3>
+        <pre><code>{
+  "redirects": [
+    {
+      "source": "/.env:path*",
+      "destination": "/404",
+      "statusCode": 404
+    }
+  ]
+}</code></pre>
+      </div>
+      <div class="platform-card">
+        <h3>Cloudflare Pages</h3>
+        <p>Cloudflare Pages has no path-level deny directive. The reliable fix is ensuring <code class="inline">.env</code> is never included in your build output — confirm it's in <code class="inline">.gitignore</code> and that your build command doesn't copy it.</p>
+      </div>
+      <div class="platform-card">
+        <h3>GitHub Pages</h3>
+        <p>GitHub Pages serves files from a branch directly and supports no deny rules. The only correct fix is to ensure <code class="inline">.env</code> is never committed to the served branch. Add it to <code class="inline">.gitignore</code> and remove it from git entirely (see Step 4).</p>
+      </div>
+    </div>
+
+    <h2 id="git-history">Step 4: Scrub the .env from git history</h2>
+    <p>If the file was ever committed — even if you later deleted it and added it to <code class="inline">.gitignore</code> — it still lives in every historical commit that contained it. Anyone who clones the repo or checks out an old commit can still read the values.</p>
+    <p>Rewrite the repository history to remove it entirely:</p>
+
+    <h3>Option A: git-filter-repo (recommended)</h3>
+    <pre><code># Install (requires Python)
+pip install git-filter-repo
+
+# Remove .env from every commit in every branch
+git filter-repo --path .env --invert-paths --force
+
+# Force-push the rewritten history
+git push origin --force --all
+git push origin --force --tags</code></pre>
+
+    <h3>Option B: BFG Repo-Cleaner (Java)</h3>
+    <pre><code># Download bfg.jar from https://rtyley.github.io/bfg-repo-cleaner/
+# Run against a fresh bare clone of your repo
+java -jar bfg.jar --delete-files .env my-repo.git
+
+# Clean up and force-push
+cd my-repo.git
+git reflog expire --expire=now --all
+git gc --prune=now --aggressive
+git push origin --force --all</code></pre>
+
+    <div class="callout warn-callout">
+      <strong>Collaborators must re-clone after a force-push.</strong> Rewriting history changes all commit SHAs. Anyone with an existing local clone needs to delete it and clone fresh — pulling on top of rewritten history creates divergence. Forks and open PRs may still carry the old commits; notify fork owners and close any PRs that reference the affected history.
+    </div>
+
+    <h2 id="verify">Step 5: Verify the fix is working</h2>
+    <p>After redeploying the corrected build, confirm that the <code class="inline">.env</code> path returns 404 and that no secrets remain in any of your served files or bundles.</p>
+
+    <p style="margin:24px 0 8px"><a class="btn primary" href="../">Verify your site with ExposureCheck &rarr;</a></p>
+    <p>ExposureCheck will probe <code class="inline">/.env</code>, <code class="inline">/.env.local</code>, <code class="inline">/.env.production</code>, <code class="inline">/.git/config</code>, and related paths, then scan your served JavaScript bundle for any hardcoded credentials that may remain. Everything runs in your browser — no signup, no data stored.</p>
+    <p>You can also do a quick manual check: open an incognito window and navigate directly to <code class="inline">https://your-site.com/.env</code>. You should see a 404 or 403. If you see your file contents, the fix has not taken effect — check whether a cache needs purging or whether the file is still present in the deployed directory.</p>
+
+    <h2 id="prevention">Prevention: stop this from happening again</h2>
+    <ul>
+      <li><strong>Add <code class="inline">.env*</code> to .gitignore before your first commit.</strong> Verify it's working with <code class="inline">git status</code> — if the file appears as "untracked" and not "modified," git is correctly ignoring it.</li>
+      <li><strong>Only deploy your build output, not your project root.</strong> Configure your CI/CD or deploy script to publish <em>only</em> the <code class="inline">dist/</code> or <code class="inline">build/</code> directory. Set this explicitly and verify it in your pipeline.</li>
+      <li><strong>Use environment variables, not files.</strong> Every major hosting platform has a secret/env UI — Netlify, Vercel, Railway, Render, Heroku, Fly.io all support it. Your code reads from <code class="inline">process.env.MY_KEY</code>, and the value is injected at runtime from the platform, never written to a file.</li>
+      <li><strong>Scan your code for hardcoded secrets before committing.</strong> Use <a href="https://labs.copperbaytech.com/leakcheck/" target="_blank" rel="noopener noreferrer">LeakCheck</a> — paste your code, <code class="inline">.env</code>, or config and it flags any hardcoded API keys, tokens, or connection strings before they reach the repository.</li>
+      <li><strong>Re-run ExposureCheck after major deploys.</strong> Make it part of your post-launch checklist, especially when you switch hosting platforms or change your deploy script.</li>
+    </ul>
+
+    <h2 id="faq">Frequently asked questions</h2>
+    <div class="faq-section">
+      <details open>
+        <summary>How quickly do bots find an exposed .env file?</summary>
+        <p>Within minutes, often faster. Automated scanners continuously probe millions of domains for paths like <code class="inline">/.env</code>, <code class="inline">/.git/config</code>, and <code class="inline">/wp-config.php</code>. If your file was live for more than a few minutes, assume your credentials have been scraped. Log coverage is incomplete and credential-harvesting is automated, so "I don't see unusual access in my logs" is not meaningful evidence that no one found it.</p>
+      </details>
+      <details>
+        <summary>Do I need to rotate credentials even if I don't think anyone found the file?</summary>
+        <p>Yes. There is no reliable way to confirm whether a file was accessed before you removed it. The cost of rotating a credential is 5–15 minutes per service. The cost of leaving a possibly-compromised key active — unauthorized API calls, data exfiltration, unexpected cloud spend — can be far higher. Rotate everything in the file.</p>
+      </details>
+      <details>
+        <summary>I redeployed but ExposureCheck still finds the .env — why?</summary>
+        <p>The most common causes: (1) your CDN or platform has cached the response — purge the cache from your hosting dashboard and wait a few minutes before rechecking; (2) the file is still committed and tracked in your repository — run <code class="inline">git ls-files .env</code> and it should return nothing; (3) your deploy script is copying the project root rather than the build output directory — verify the exact directory your deploy step is publishing.</p>
+      </details>
+      <details>
+        <summary>My .env contained a DATABASE_URL with a password. What do I do?</summary>
+        <p>Reset the password for that database user immediately. For hosted databases (Supabase, PlanetScale, Railway, Render), use the platform's dashboard to reset credentials. For self-hosted Postgres or MySQL, use <code class="inline">ALTER USER youruser WITH PASSWORD 'new_password';</code>. Then update the connection string in every service referencing it — other environment variable configs, CI/CD secrets, and any other applications using that database.</p>
+      </details>
+      <details>
+        <summary>Doesn't deleting the .env from my repo remove it from GitHub?</summary>
+        <p>No. Deleting a file from the current branch removes it from future clones but leaves it intact in the repository's full commit history. Anyone with read access can check out any previous commit and read the file. To actually expunge it, you need to rewrite history with <code class="inline">git filter-repo</code> or BFG and force-push (see <a href="#git-history">Step 4</a>). Even after that, forks may still hold copies of the old commits.</p>
+      </details>
+    </div>
+
+    <h2 style="margin-top:48px">Also in the Copper Bay Labs ship-safety suite</h2>
+    <p>An exposed <code class="inline">.env</code> is one of several things to check before and after shipping. These free tools cover the rest:</p>
+    <div class="suite">
+      <a href="https://labs.copperbaytech.com/leakcheck/" target="_blank" rel="noopener noreferrer">
+        <span class="s-tag">Pre-commit</span>
+        <span class="s-name">LeakCheck</span>
+        <p>Paste code or your <code class="inline">.env</code> and find hardcoded API keys and secrets before they reach the repo.</p>
+      </a>
+      <a href="../">
+        <span class="s-tag">Post-deploy</span>
+        <span class="s-name">ExposureCheck</span>
+        <p>Scan your live URL for exposed <code class="inline">.env</code>, <code class="inline">.git</code>, source maps, and bundled secrets. Free, no signup.</p>
+      </a>
+      <a href="https://labs.copperbaytech.com/shipsafe/" target="_blank" rel="noopener noreferrer">
+        <span class="s-tag">Legal risk</span>
+        <span class="s-name">ShipSafe</span>
+        <p>Check your site for ADA/WCAG accessibility and privacy-policy gaps before you ship.</p>
+      </a>
+    </div>
+  </div>
+</article>
+</main>
+
+<footer class="footer" role="contentinfo">
+  <div class="wrap foot">
+    <div>
+      <a class="brand small" href="../" aria-label="ExposureCheck — homepage">
+        <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M32 4 54 12v18c0 14-9 24-22 30C19 54 10 44 10 30V12L32 4Z" fill="none" stroke="#cbd2da" stroke-width="4" stroke-linejoin="round"/>
+          <path d="M22 30v-5a10 10 0 0 1 20 0v5" fill="none" stroke="#bf6b3c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="19" y="30" width="26" height="18" rx="3" fill="none" stroke="#bf6b3c" stroke-width="4"/>
+        </svg>
+        <span class="wordmark">ExposureCheck</span>
+      </a>
+      <p class="fine">Heuristic self-check, not a security guarantee. Scan only sites you own.</p>
+    </div>
+    <nav class="foot-nav" aria-label="Footer navigation">
+      <a href="../about.html">How it works</a>
+      <a href="../">Scan your site</a>
+      <a href="https://labs.copperbaytech.com/leakcheck/" target="_blank" rel="noopener noreferrer">LeakCheck</a>
+      <a href="https://labs.copperbaytech.com/shipsafe/" target="_blank" rel="noopener noreferrer">ShipSafe</a>
+      <a href="https://copperbaytech.com" target="_blank" rel="noopener noreferrer">Secure my project &rarr;</a>
+    </nav>
+  </div>
+  <div class="wrap">
+    <p class="madeby">A <a href="https://copperbaytech.com" target="_blank" rel="noopener noreferrer">Copper Bay Labs</a> product.</p>
+  </div>
+</footer>
+</body>
+</html>
