@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://dukotah.github.io/exposurecheck/sitemap.xml
+Sitemap: https://labs.copperbaytech.com/exposurecheck/sitemap.xml
