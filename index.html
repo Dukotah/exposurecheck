@@ -41,6 +41,7 @@
     </a>
     <nav class="nav" aria-label="Primary navigation">
       <a href="about.html">How it works</a>
+      <a href="guides/fix-exposed-env-file.html">Guides</a>
     </nav>
   </div>
 </header>
@@ -201,6 +202,7 @@
       <details>
         <summary>A secret showed up — what now?</summary>
         <p><strong>Rotate it immediately</strong> in the provider's dashboard so the exposed value stops working. Then remove it from the deploy: pull the literal out of your built output, move it to an environment variable or secret manager, and make sure the file (<code>.env</code>, config, source maps) is in your <code>.gitignore</code> and excluded from your production build. Finally, scrub it from git history with <code>git filter-repo</code> or BFG and force-push — anything that has been public should be treated as already harvested.</p>
+        <p><a href="guides/fix-exposed-env-file.html">Full step-by-step fix guide: per-provider credential rotation, server configs for Nginx/Netlify/Vercel, and git history cleanup &rarr;</a></p>
       </details>
     </div>
   </section>
@@ -233,6 +235,7 @@
     </div>
     <nav class="foot-nav" aria-label="Footer navigation">
       <a href="about.html">How it works</a>
+      <a href="guides/fix-exposed-env-file.html">Fix guides</a>
       <a href="https://labs.copperbaytech.com/leakcheck/" target="_blank" rel="noopener noreferrer">LeakCheck</a>
       <a href="https://labs.copperbaytech.com/shipsafe/" target="_blank" rel="noopener noreferrer">ShipSafe</a>
       <a href="https://copperbaytech.com" target="_blank" rel="noopener noreferrer">Secure my project &rarr;</a>
