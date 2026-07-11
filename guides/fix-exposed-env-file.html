@@ -78,6 +78,7 @@
     <nav class="nav" aria-label="Primary navigation">
       <a href="../about.html">How it works</a>
       <a href="../">Scan your site</a>
+      <a href="how-to-check-website-exposed-files.html">Audit guide</a>
     </nav>
   </div>
 </header>
@@ -227,7 +228,7 @@ git push origin --force --all</code></pre>
       <li><strong>Only deploy your build output, not your project root.</strong> Configure your CI/CD or deploy script to publish <em>only</em> the <code class="inline">dist/</code> or <code class="inline">build/</code> directory. Set this explicitly and verify it in your pipeline.</li>
       <li><strong>Use environment variables, not files.</strong> Every major hosting platform has a secret/env UI — Netlify, Vercel, Railway, Render, Heroku, Fly.io all support it. Your code reads from <code class="inline">process.env.MY_KEY</code>, and the value is injected at runtime from the platform, never written to a file.</li>
       <li><strong>Scan your code for hardcoded secrets before committing.</strong> Use <a href="https://labs.copperbaytech.com/leakcheck/" target="_blank" rel="noopener noreferrer">LeakCheck</a> — paste your code, <code class="inline">.env</code>, or config and it flags any hardcoded API keys, tokens, or connection strings before they reach the repository.</li>
-      <li><strong>Re-run ExposureCheck after major deploys.</strong> Make it part of your post-launch checklist, especially when you switch hosting platforms or change your deploy script.</li>
+      <li><strong>Re-run ExposureCheck after major deploys.</strong> Make it part of your post-launch checklist, especially when you switch hosting platforms or change your deploy script. For a comprehensive checklist of everything to probe — including <code class="inline">.git</code> folders, source maps, and database backups — see <a href="how-to-check-website-exposed-files.html">how to audit a website for exposed files</a>.</li>
     </ul>
 
     <h2 id="faq">Frequently asked questions</h2>
@@ -293,6 +294,7 @@ git push origin --force --all</code></pre>
     <nav class="foot-nav" aria-label="Footer navigation">
       <a href="../about.html">How it works</a>
       <a href="../">Scan your site</a>
+      <a href="how-to-check-website-exposed-files.html">How to audit for exposures</a>
       <a href="https://labs.copperbaytech.com/leakcheck/" target="_blank" rel="noopener noreferrer">LeakCheck</a>
       <a href="https://labs.copperbaytech.com/shipsafe/" target="_blank" rel="noopener noreferrer">ShipSafe</a>
       <a href="https://copperbaytech.com" target="_blank" rel="noopener noreferrer">Secure my project &rarr;</a>

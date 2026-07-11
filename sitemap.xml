@@ -14,5 +14,12 @@
     <loc>https://labs.copperbaytech.com/exposurecheck/guides/fix-exposed-env-file.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
+    <lastmod>2026-07-11</lastmod>
+  </url>
+  <url>
+    <loc>https://labs.copperbaytech.com/exposurecheck/guides/how-to-check-website-exposed-files.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <lastmod>2026-07-11</lastmod>
   </url>
 </urlset>

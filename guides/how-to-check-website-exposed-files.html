@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to Check if a Website Has Exposed Files — Security Audit Guide</title>
+<meta name="description" content="Step-by-step guide to auditing a website for publicly exposed .env files, .git folders, source maps, and hardcoded API keys. Manual curl checks, browser DevTools techniques, and automated scanning — before someone else finds them.">
+<link rel="canonical" href="https://labs.copperbaytech.com/exposurecheck/guides/how-to-check-website-exposed-files.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="ExposureCheck">
+<meta property="og:title" content="How to Check if a Website Has Exposed Files — Security Audit Guide">
+<meta property="og:description" content="Audit a website for exposed .env files, public .git folders, leaked source maps, and hardcoded API keys in JavaScript bundles. Manual and automated methods.">
+<meta property="og:url" content="https://labs.copperbaytech.com/exposurecheck/guides/how-to-check-website-exposed-files.html">
+<meta property="og:image" content="https://labs.copperbaytech.com/exposurecheck/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#faf8f4">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"How to Check if a Website Has Exposed Files — Security Audit Guide","description":"Step-by-step guide to auditing a website for exposed .env files, public .git folders, leaked source maps, and hardcoded API keys. Manual curl checks, browser DevTools techniques, and automated scanning.","author":{"@type":"Organization","name":"Copper Bay Labs","url":"https://copperbaytech.com"},"publisher":{"@type":"Organization","name":"Copper Bay Labs","url":"https://copperbaytech.com"},"datePublished":"2026-07-11","dateModified":"2026-07-11","mainEntityOfPage":"https://labs.copperbaytech.com/exposurecheck/guides/how-to-check-website-exposed-files.html"}
+</script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"What is the fastest way to check if a site has an exposed .env file?","acceptedAnswer":{"@type":"Answer","text":"Open a terminal and run: curl -s -o /dev/null -w \"%{http_code}\" https://your-site.com/.env. A 200 response means the file is publicly accessible. Anything other than a 200 is safe — 404 means the path doesn't exist, 403 means access is denied. You can also just navigate to the URL in an incognito browser window."}},{"@type":"Question","name":"How do I know if a site's .git folder is publicly exposed?","acceptedAnswer":{"@type":"Answer","text":"Probe https://your-site.com/.git/config — if you get a 200 response with INI-formatted text starting with [core], the folder is publicly accessible. This exposes the remote URL, branch names, and potentially credentials stored in the config. Run: curl -s https://your-site.com/.git/config | head -5"}},{"@type":"Question","name":"What does an exposed source map reveal?","acceptedAnswer":{"@type":"Answer","text":"A JavaScript source map (.js.map file) reconstructs the original, unminified source code from a compiled bundle. If your app was built from TypeScript or a framework like React or Vue, the source map can reveal your complete original source — including file names, comments, environment variable names, and sometimes hardcoded values that were present during development."}},{"@type":"Question","name":"Can I check a site I don't own for exposed files?","acceptedAnswer":{"@type":"Answer","text":"You should only audit sites you own or have explicit written permission to test. Probing a third-party site without authorization may violate the Computer Fraud and Abuse Act (US), the Computer Misuse Act (UK), and equivalent laws in other jurisdictions, even if your intent is to report a vulnerability responsibly."}},{"@type":"Question","name":"How often should I audit my own site for exposed files?","acceptedAnswer":{"@type":"Answer","text":"Run a check before every public launch, after any major infrastructure change (new hosting platform, new deploy pipeline), and after adding new services that introduce secrets (third-party APIs, payment processors). A quarterly check is a reasonable baseline for live production sites."}},{"@type":"Question","name":"Does ExposureCheck cover all the paths I should check?","acceptedAnswer":{"@type":"Answer","text":"ExposureCheck probes the most commonly exposed paths — .env variants, .git/config, source maps — and scans your served JavaScript bundles for hardcoded API keys matching 40+ provider patterns. For a deeper manual audit (custom config file paths, backup files, legacy admin panels), supplement with the manual curl checks in this guide."}}]}
+</script>
+<link rel="stylesheet" href="../styles.css?v=1">
+<style>
+  .doc .lede{font-size:clamp(17px,2.3vw,20px);color:var(--muted)}
+  .doc h2{scroll-margin-top:80px}
+  .doc h3{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:19px;margin:22px 0 6px;letter-spacing:-.01em}
+  .toc{display:flex;flex-wrap:wrap;gap:10px;margin:22px 0 6px;padding:0;list-style:none}
+  .toc a{display:inline-block;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:7px 14px;font-size:14px;font-weight:600;color:var(--muted)}
+  .toc a:hover{border-color:var(--bay);color:var(--ink);text-decoration:none}
+  .callout.warn-callout{background:var(--fail-bg);border-left-color:var(--fail);color:#5e2019}
+  .callout.tip-callout{background:var(--pass-bg);border-left-color:var(--pass);color:#1b4d30}
+  .callout.note-callout{background:var(--warn-bg);border-left-color:var(--warn);color:#4d3208}
+  .doc code.inline{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.9em;background:var(--line-2);padding:2px 6px;border-radius:5px}
+  pre{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;overflow-x:auto;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.6;margin:12px 0}
+  pre code{background:none;padding:0;font-size:inherit}
+  .path-list{margin:18px 0;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:10px}
+  .path-item{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 20px}
+  .path-item .path-label{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
+  .path-item .path-code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px;font-weight:700;color:var(--bay)}
+  .path-item .severity{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:6px}
+  .sev-critical{background:var(--fail-bg);color:var(--fail)}
+  .sev-high{background:var(--high-bg);color:var(--high)}
+  .sev-medium{background:var(--warn-bg);color:var(--warn)}
+  .path-item p{margin:0;color:var(--muted);font-size:15px}
+  .response-table{width:100%;border-collapse:collapse;margin:14px 0}
+  .response-table th{background:var(--surface);border:1px solid var(--line);padding:10px 14px;text-align:left;font-weight:700;font-size:14px;font-family:"Hanken Grotesk",sans-serif}
+  .response-table td{border:1px solid var(--line);padding:10px 14px;font-size:14px;vertical-align:top}
+  .response-table tr:nth-child(even) td{background:var(--line-2)}
+  .ok{color:var(--pass);font-weight:700}
+  .danger{color:var(--fail);font-weight:700}
+  .platform-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin:18px 0}
+  .platform-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+  .platform-card h3{margin:0 0 8px;font-size:16px;font-family:"Fraunces",Georgia,serif;font-weight:600}
+  .platform-card p{font-size:14px;color:var(--muted);margin:8px 0 0}
+  .platform-card pre{margin:10px 0 0;font-size:12.5px}
+  .suite{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:18px 0 6px}
+  .suite a{display:block;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow);transition:box-shadow .15s,transform .15s,border-color .15s}
+  .suite a:hover{text-decoration:none;box-shadow:var(--shadow-lift);transform:translateY(-2px);border-color:var(--line-2)}
+  .suite .s-name{font-family:"Fraunces",serif;font-weight:600;font-size:17px;color:var(--ink);display:block;margin:0 0 4px}
+  .suite p{color:var(--muted);font-size:14px;margin:0}
+  .suite .s-tag{display:inline-block;margin-bottom:8px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--bay);background:var(--bay-tint,#e8f4f6);border:1px solid #cfe1e3;border-radius:6px;padding:2px 8px}
+  .faq-section{margin:18px 0}
+  .faq-section details{border-bottom:1px solid var(--line);padding:14px 0}
+  .faq-section details:first-child{border-top:1px solid var(--line)}
+  .faq-section summary{font-weight:600;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .faq-section summary::-webkit-details-marker{display:none}
+  .faq-section summary::after{content:"+";font-size:20px;color:var(--muted);flex-shrink:0}
+  .faq-section details[open] summary::after{content:"\2212"}
+  .faq-section details p,.faq-section details ul{margin:12px 0 4px;color:var(--muted)}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+
+<header class="masthead" role="banner">
+  <div class="wrap hdr-bar">
+    <a class="brand" href="../" aria-label="ExposureCheck — go to homepage">
+      <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M32 4 54 12v18c0 14-9 24-22 30C19 54 10 44 10 30V12L32 4Z" fill="none" stroke="#13525a" stroke-width="4" stroke-linejoin="round"/>
+        <path d="M22 30v-5a10 10 0 0 1 20 0v5" fill="none" stroke="#bf6b3c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="19" y="30" width="26" height="18" rx="3" fill="none" stroke="#bf6b3c" stroke-width="4"/>
+      </svg>
+      <span class="wordmark">ExposureCheck</span>
+    </a>
+    <nav class="nav" aria-label="Primary navigation">
+      <a href="../about.html">How it works</a>
+      <a href="../">Scan your site</a>
+      <a href="fix-exposed-env-file.html">Fix guides</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+<article class="doc">
+  <div class="wrap narrow">
+    <p class="eyebrow" style="text-align:left">Security audit guide</p>
+    <h1>How to check if a website has exposed files</h1>
+    <p class="lede">Sensitive files — environment configs, git repositories, source maps, database backups — end up publicly accessible more often than most developers expect. This guide shows you exactly how to audit your own site for the most common exposures before someone else finds them.</p>
+
+    <div class="callout note-callout">
+      <strong>Only test sites you own.</strong> These techniques are standard defensive security practice for your own infrastructure. Probing a site you don't own or haven't been authorized to test is unauthorized access under the CFAA (US), Computer Misuse Act (UK), and equivalent laws globally — regardless of intent.
+    </div>
+
+    <ul class="toc" aria-label="On this page">
+      <li><a href="#what-gets-exposed">What gets exposed</a></li>
+      <li><a href="#manual-checks">Manual checks</a></li>
+      <li><a href="#devtools">Browser DevTools</a></li>
+      <li><a href="#automated">Automated scanning</a></li>
+      <li><a href="#interpret">Interpreting results</a></li>
+      <li><a href="#when-to-run">When to run audits</a></li>
+      <li><a href="#faq">FAQ</a></li>
+    </ul>
+
+    <h2 id="what-gets-exposed">What commonly gets exposed and why it matters</h2>
+    <p>The same deployment mistakes happen across every hosting platform and every stack. These are the paths worth checking first, in rough order of impact:</p>
+
+    <ul class="path-list">
+      <li class="path-item">
+        <div class="path-label">
+          <span class="path-code">/.env</span>
+          <span class="severity sev-critical">Critical</span>
+        </div>
+        <p>The project's environment variable file — contains API keys, database passwords, third-party service credentials, and signing secrets. Bots probe this path within minutes of a site going live. Variants to check: <code class="inline">/.env.local</code>, <code class="inline">/.env.production</code>, <code class="inline">/.env.backup</code>, <code class="inline">/.env.old</code>.</p>
+      </li>
+      <li class="path-item">
+        <div class="path-label">
+          <span class="path-code">/.git/config</span>
+          <span class="severity sev-critical">Critical</span>
+        </div>
+        <p>If the <code class="inline">.git</code> directory is publicly accessible, an attacker can reconstruct the entire repository using tools like <a href="https://github.com/internetwache/GitTools" target="_blank" rel="noopener noreferrer">GitTools</a> — even if the repo is private. The config file reveals the remote URL (which may include an embedded access token for HTTPS clones), branch names, and author configuration. The rest of the history is typically downloadable from <code class="inline">/.git/objects/</code>.</p>
+      </li>
+      <li class="path-item">
+        <div class="path-label">
+          <span class="path-code">/*.js.map</span>
+          <span class="severity sev-high">High</span>
+        </div>
+        <p>JavaScript source maps reconstruct your original, unminified source code from a compiled bundle. A source map for a React or Vue app exposes your full component tree, TypeScript types, comments, file structure, and any hardcoded values that were present in development — including keys and credentials that someone added "temporarily" to a config file.</p>
+      </li>
+      <li class="path-item">
+        <div class="path-label">
+          <span class="path-code">/config.json &nbsp;/config.yml</span>
+          <span class="severity sev-high">High</span>
+        </div>
+        <p>Application config files placed in the webroot. Some frameworks and CMSes create these in predictable locations — <code class="inline">/config/database.yml</code> for Rails, <code class="inline">/config.json</code> for various Node apps. If the file contains credentials (even development ones), they're now public.</p>
+      </li>
+      <li class="path-item">
+        <div class="path-label">
+          <span class="path-code">/backup.sql &nbsp;/dump.sql</span>
+          <span class="severity sev-critical">Critical</span>
+        </div>
+        <p>Database backups placed in the webroot during maintenance and never removed. These contain a full copy of your data, often including user PII, hashed passwords, and payment records. Common naming patterns: <code class="inline">backup.sql</code>, <code class="inline">dump.sql</code>, <code class="inline">db.sql</code>, <code class="inline">database.sql.gz</code>, <code class="inline">yoursite.sql</code>.</p>
+      </li>
+      <li class="path-item">
+        <div class="path-label">
+          <span class="path-code">/wp-config.php &nbsp;/phpinfo.php</span>
+          <span class="severity sev-high">High</span>
+        </div>
+        <p>WordPress configuration (database credentials, secret keys, salts) and PHP environment info dumps. These are probed constantly on any domain. <code class="inline">phpinfo.php</code> is less exploitable but reveals your server stack, PHP version, loaded extensions, and environment variables — useful for attackers planning a more targeted attack.</p>
+      </li>
+    </ul>
+
+    <h2 id="manual-checks">Manual checks with curl</h2>
+    <p>The quickest way to probe a specific path is a single <code class="inline">curl</code> command that reports only the HTTP status code without fetching the full body:</p>
+    <pre><code>curl -s -o /dev/null -w "%{http_code}" https://your-site.com/.env</code></pre>
+    <p>Run this for each path you want to check. The meaning of each response code:</p>
+    <table class="response-table">
+      <thead>
+        <tr>
+          <th>HTTP status</th>
+          <th>What it means</th>
+          <th>Safe?</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code class="inline">200</code></td>
+          <td>The path exists and is being served — may contain file contents</td>
+          <td><span class="danger">No — investigate immediately</span></td>
+        </tr>
+        <tr>
+          <td><code class="inline">301 / 302</code></td>
+          <td>Redirect — follow the redirect and check what it leads to</td>
+          <td>Check destination</td>
+        </tr>
+        <tr>
+          <td><code class="inline">403</code></td>
+          <td>Access denied — the path exists but the server is blocking access</td>
+          <td><span class="ok">Yes, if consistently applied</span></td>
+        </tr>
+        <tr>
+          <td><code class="inline">404</code></td>
+          <td>Path not found — the file isn't there or the server isn't revealing it</td>
+          <td><span class="ok">Yes</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout tip-callout">
+      <strong>Check that 200 actually returns content.</strong> Some servers return a 200 with an empty body or an HTML error page for all requests (a "soft 404"). If you get a 200, run the curl without <code class="inline">-o /dev/null</code> to see what the response body actually contains: <code class="inline">curl -s https://your-site.com/.env | head -20</code>
+    </div>
+
+    <h3>A complete shell audit loop</h3>
+    <p>This one-liner probes the most common high-risk paths and reports each HTTP status in a single pass:</p>
+    <pre><code>SITE="https://your-site.com"
+for path in /.env /.env.local /.env.production /.env.backup \
+            /.git/config /.git/HEAD \
+            /config.json /config.yml /config.php \
+            /wp-config.php /phpinfo.php \
+            /backup.sql /dump.sql /db.sql /database.sql; do
+  code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$SITE$path")
+  echo "$code  $SITE$path"
+done</code></pre>
+    <p>Any line showing <code class="inline">200</code> warrants a closer look. Pipe through <code class="inline">grep "^200"</code> to filter for hits only.</p>
+
+    <h3>Checking for a publicly accessible .git directory</h3>
+    <p>If <code class="inline">/.git/config</code> returns 200, confirm the extent of the exposure. A browseable <code class="inline">.git/</code> directory lets an attacker download the entire object store:</p>
+    <pre><code># Check if the directory listing is browseable
+curl -s https://your-site.com/.git/ | grep -i "Index of"
+
+# Check if packed refs are accessible (reveals all branch/tag SHAs)
+curl -s -o /dev/null -w "%{http_code}" https://your-site.com/.git/packed-refs
+
+# Fetch the HEAD file to confirm the active branch
+curl -s https://your-site.com/.git/HEAD</code></pre>
+    <p>A HEAD response of <code class="inline">ref: refs/heads/main</code> confirms the repo is accessible. At this point, refer to the <a href="fix-exposed-env-file.html">fix guide</a> — the server config blocks in Step 3 cover how to deny <code class="inline">/.git/</code> access on Nginx, Apache, Vercel, and Netlify.</p>
+
+    <h2 id="devtools">Finding source maps and bundled secrets in browser DevTools</h2>
+    <p>Not all exposures are path-accessible files. JavaScript bundles built with source maps enabled — the default in most Vite, webpack, and Create React App configurations — leak your original source code via the browser's DevTools debugger.</p>
+
+    <h3>Check for source maps in DevTools</h3>
+    <ol>
+      <li>Open the site in Chrome or Firefox and open DevTools (<kbd>F12</kbd>).</li>
+      <li>Go to the <strong>Sources</strong> tab (Chrome) or <strong>Debugger</strong> tab (Firefox).</li>
+      <li>Look for a tree under "webpack://", "vite://", or similar. If you see your original file names (e.g. <code class="inline">src/components/App.tsx</code>), source maps are enabled and your original code is exposed to anyone who opens DevTools.</li>
+      <li>If you find source maps: set <code class="inline">productionSourceMap: false</code> (Vite), <code class="inline">devtool: false</code> (webpack), or <code class="inline">GENERATE_SOURCEMAP=false</code> (Create React App) in your build configuration, then redeploy.</li>
+    </ol>
+
+    <h3>Check the Network tab for .map files</h3>
+    <ol>
+      <li>Open DevTools → <strong>Network</strong> tab. Check "Preserve log."</li>
+      <li>Reload the page.</li>
+      <li>Filter by ".map" in the request search box.</li>
+      <li>Any <code class="inline">*.js.map</code> or <code class="inline">*.css.map</code> request with a 200 response means source maps are being served publicly. Click the request to verify the response contains your original source.</li>
+    </ol>
+
+    <h3>Scan the JavaScript bundle for hardcoded secrets</h3>
+    <p>Even without source maps, compiled JavaScript bundles frequently contain hardcoded API keys or credentials that were embedded at build time. These are invisible to DevTools navigation but readable in the raw bundle text:</p>
+    <pre><code># Download the main bundle and grep for common key patterns
+curl -s "$(curl -s https://your-site.com/ | grep -oE 'src="[^"]+\.js"' | head -1 | grep -oE '"[^"]+"' | tr -d '"')" \
+  | grep -oE '(sk_live|sk_test|AKIA|ghp_|AIza|pk_live)[A-Za-z0-9_\-]{10,}'</code></pre>
+    <p>This is exactly what ExposureCheck automates — it fetches your live bundle and matches it against 40+ provider-specific key patterns, flagged by severity.</p>
+
+    <h2 id="automated">Automated scanning with ExposureCheck</h2>
+    <p>The manual checks above are effective but time-consuming for a thorough audit. ExposureCheck runs the same probes automatically in your browser — no installation, no signup, no data stored server-side:</p>
+
+    <p style="margin:24px 0 8px"><a class="btn primary" href="../">Run ExposureCheck on your site &rarr;</a></p>
+
+    <p>ExposureCheck covers:</p>
+    <ul>
+      <li><strong>Path probing</strong> — <code class="inline">/.env</code> and common variants, <code class="inline">/.git/config</code>, and other high-risk paths</li>
+      <li><strong>Bundle scanning</strong> — fetches your served JavaScript and matches 40+ API key and credential patterns (AWS, OpenAI, Stripe, GitHub, Supabase, Twilio, Google Cloud, and more)</li>
+      <li><strong>Severity grading</strong> — each finding is rated Critical / High / Medium / Low with a plain-English explanation</li>
+      <li><strong>Source map detection</strong> — flags publicly accessible <code class="inline">.js.map</code> files</li>
+    </ul>
+    <p>For paths not covered by ExposureCheck (database backup files, custom config paths, legacy admin panels), supplement with the manual loop above.</p>
+
+    <h2 id="interpret">Interpreting what you find</h2>
+    <p>Not every 200 response is equally urgent. Use this to triage:</p>
+    <ul>
+      <li><strong>Exposed <code class="inline">.env</code> or credential file:</strong> Treat as an active incident. Rotate credentials immediately — before removing the file, before anything else. Follow the full <a href="fix-exposed-env-file.html">remediation guide</a>.</li>
+      <li><strong>Accessible <code class="inline">.git/config</code>:</strong> Block the path immediately at your server level and assess whether the repository has already been reconstructed. If the repo is private and contains secrets in its history, rotate any credentials that appeared in any commit.</li>
+      <li><strong>Source maps enabled:</strong> Not an incident requiring immediate credential rotation, but a code-confidentiality issue. Rebuild with source maps disabled and redeploy. Priority depends on how sensitive your source code is.</li>
+      <li><strong>Hardcoded key in a bundle:</strong> Rotate the exposed credential and move the value to a proper environment variable injected at build or runtime.</li>
+      <li><strong>Accessible database backup:</strong> Treat as a critical data breach. The file must be removed immediately, the platform security team notified, and affected users informed per your GDPR/CCPA obligations.</li>
+    </ul>
+
+    <h2 id="when-to-run">When to run an exposure audit</h2>
+    <p>Build this into your deployment process rather than treating it as a one-time check:</p>
+    <ul>
+      <li><strong>Before every public launch.</strong> The window between "deployed" and "discovered by a scanner" is measured in minutes for common paths like <code class="inline">/.env</code>.</li>
+      <li><strong>After changing hosting platforms.</strong> Moving from Vercel to Netlify, or from a managed platform to a VPS, changes what gets served and what gets blocked — a deny rule that worked on the old platform may not carry over.</li>
+      <li><strong>After modifying your deploy pipeline.</strong> If you changed how your CI/CD step publishes files — a new build script, a new artifacts directory, a new deploy action — verify the new config doesn't inadvertently include files it shouldn't.</li>
+      <li><strong>After adding a new third-party service.</strong> New services typically mean new credentials in your environment. It's worth confirming they haven't been accidentally included in a build artifact.</li>
+      <li><strong>Quarterly, as a baseline.</strong> Configurations drift, new files get added, and what was safe last quarter might not be safe today.</li>
+    </ul>
+
+    <h2 id="faq">Frequently asked questions</h2>
+    <div class="faq-section">
+      <details open>
+        <summary>What is the fastest way to check if a site has an exposed .env file?</summary>
+        <p>Open a terminal and run:</p>
+        <pre><code>curl -s -o /dev/null -w "%{http_code}" https://your-site.com/.env</code></pre>
+        <p>A <code class="inline">200</code> response means the file is publicly accessible. Anything other than 200 is safe — <code class="inline">404</code> means the path doesn't exist, <code class="inline">403</code> means access is denied. You can also navigate to the URL directly in an incognito browser window and see the file contents if it's exposed.</p>
+      </details>
+      <details>
+        <summary>How do I know if a site's .git folder is publicly exposed?</summary>
+        <p>Probe <code class="inline">https://your-site.com/.git/config</code> — if you get a 200 response with INI-formatted text starting with <code class="inline">[core]</code>, the folder is publicly accessible. This exposes the remote URL, branch names, and potentially credentials stored in the config. Run:</p>
+        <pre><code>curl -s https://your-site.com/.git/config | head -5</code></pre>
+      </details>
+      <details>
+        <summary>What does an exposed source map actually reveal?</summary>
+        <p>A JavaScript source map (<code class="inline">.js.map</code> file) reconstructs your original, unminified source code from a compiled bundle. If your app was built from TypeScript or a framework like React or Vue, the source map can expose your full component tree, TypeScript types, comments, file structure, and any hardcoded values that were present during development — including API keys someone added "temporarily" to a config file.</p>
+      </details>
+      <details>
+        <summary>Can I check a site I don't own for exposed files?</summary>
+        <p>Only audit sites you own or have explicit written permission to test. Probing a third-party site without authorization may violate the Computer Fraud and Abuse Act (US), the Computer Misuse Act (UK), and equivalent laws in other jurisdictions — even if your intent is responsible disclosure. If you discover an exposure on a site you don't own and want to report it, contact the site owner or their security team directly without downloading any data.</p>
+      </details>
+      <details>
+        <summary>How often should I audit my own site?</summary>
+        <p>Run a check before every public launch, after any major infrastructure change (new hosting platform, new deploy pipeline), and after adding new services that introduce secrets. A quarterly check is a reasonable baseline for live production sites.</p>
+      </details>
+      <details>
+        <summary>Does ExposureCheck cover all the paths I should check?</summary>
+        <p>ExposureCheck probes the most commonly exposed paths — <code class="inline">.env</code> variants, <code class="inline">.git/config</code>, source maps — and scans your served JavaScript bundles for hardcoded API keys matching 40+ provider patterns. For a deeper manual audit (custom config file paths, backup files, legacy admin panels specific to your stack), supplement with the manual curl loop in this guide.</p>
+      </details>
+    </div>
+
+    <p style="margin:32px 0 0"><a href="fix-exposed-env-file.html" style="font-weight:600">Found something? Follow the step-by-step remediation guide &rarr;</a></p>
+
+    <h2 style="margin-top:48px">Also in the Copper Bay Labs ship-safety suite</h2>
+    <p>Exposed files are one part of a broader pre-launch security and compliance picture:</p>
+    <div class="suite">
+      <a href="https://labs.copperbaytech.com/leakcheck/" target="_blank" rel="noopener noreferrer">
+        <span class="s-tag">Pre-commit</span>
+        <span class="s-name">LeakCheck</span>
+        <p>Paste code or your <code class="inline">.env</code> and find hardcoded API keys and secrets before they reach the repo.</p>
+      </a>
+      <a href="../">
+        <span class="s-tag">Post-deploy</span>
+        <span class="s-name">ExposureCheck</span>
+        <p>Automated scan of your live URL for exposed <code class="inline">.env</code>, <code class="inline">.git</code>, source maps, and bundled secrets.</p>
+      </a>
+      <a href="https://labs.copperbaytech.com/hardencheck/" target="_blank" rel="noopener noreferrer">
+        <span class="s-tag">HTTP headers</span>
+        <span class="s-name">HardenCheck</span>
+        <p>Scan your security headers — CSP, HSTS, X-Frame-Options, cookie flags — and get an A–F report card with fixes.</p>
+      </a>
+    </div>
+  </div>
+</article>
+</main>
+
+<footer class="footer" role="contentinfo">
+  <div class="wrap foot">
+    <div>
+      <a class="brand small" href="../" aria-label="ExposureCheck — homepage">
+        <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M32 4 54 12v18c0 14-9 24-22 30C19 54 10 44 10 30V12L32 4Z" fill="none" stroke="#cbd2da" stroke-width="4" stroke-linejoin="round"/>
+          <path d="M22 30v-5a10 10 0 0 1 20 0v5" fill="none" stroke="#bf6b3c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="19" y="30" width="26" height="18" rx="3" fill="none" stroke="#bf6b3c" stroke-width="4"/>
+        </svg>
+        <span class="wordmark">ExposureCheck</span>
+      </a>
+      <p class="fine">Heuristic self-check, not a security guarantee. Scan only sites you own.</p>
+    </div>
+    <nav class="foot-nav" aria-label="Footer navigation">
+      <a href="../about.html">How it works</a>
+      <a href="../">Scan your site</a>
+      <a href="fix-exposed-env-file.html">Fix exposed files</a>
+      <a href="https://labs.copperbaytech.com/leakcheck/" target="_blank" rel="noopener noreferrer">LeakCheck</a>
+      <a href="https://labs.copperbaytech.com/shipsafe/" target="_blank" rel="noopener noreferrer">ShipSafe</a>
+      <a href="https://copperbaytech.com" target="_blank" rel="noopener noreferrer">Secure my project &rarr;</a>
+    </nav>
+  </div>
+  <div class="wrap">
+    <p class="madeby">A <a href="https://copperbaytech.com" target="_blank" rel="noopener noreferrer">Copper Bay Labs</a> product.</p>
+  </div>
+</footer>
+</body>
+</html>
