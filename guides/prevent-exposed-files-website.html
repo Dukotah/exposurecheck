@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to Prevent Exposed Files on Your Website — Deployment Security Checklist</title>
+<meta name="description" content="Stop .env files, .git directories, source maps, and database backups from becoming publicly accessible. Build-pipeline hygiene, web-server rules, secrets management, and a pre-deploy checklist — all in one guide.">
+<link rel="canonical" href="https://labs.copperbaytech.com/exposurecheck/guides/prevent-exposed-files-website.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="ExposureCheck">
+<meta property="og:title" content="How to Prevent Exposed Files on Your Website — Deployment Security Checklist">
+<meta property="og:description" content="Stop .env files, .git folders, source maps, and database backups from reaching your webroot. Build-pipeline hygiene, server deny rules, and secrets management for every major hosting platform.">
+<meta property="og:url" content="https://labs.copperbaytech.com/exposurecheck/guides/prevent-exposed-files-website.html">
+<meta property="og:image" content="https://labs.copperbaytech.com/exposurecheck/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#faf8f4">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"How to Prevent Exposed Files on Your Website — Deployment Security Checklist","description":"Stop .env files, .git directories, source maps, and database backups from becoming publicly accessible. Build-pipeline hygiene, web-server deny rules, secrets management, and a pre-deploy verification checklist.","author":{"@type":"Organization","name":"Copper Bay Labs","url":"https://copperbaytech.com"},"publisher":{"@type":"Organization","name":"Copper Bay Labs","url":"https://copperbaytech.com"},"datePublished":"2026-07-25","dateModified":"2026-07-25","mainEntityOfPage":"https://labs.copperbaytech.com/exposurecheck/guides/prevent-exposed-files-website.html"}
+</script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"What is the single most effective thing I can do to prevent .env exposure?","acceptedAnswer":{"@type":"Answer","text":"Keep your project root and your webroot separate. When your deploy process copies only a specific build output directory (dist/, public/, out/) to the server — not your entire project folder — files like .env, .git/, and node_modules/ never enter the served file tree in the first place. On static hosts like Netlify and Vercel this is the default; on VPS deployments it requires deliberately setting the webroot to your build output directory rather than the project root."}},{"@type":"Question","name":"Does .gitignore prevent a file from being served publicly?","acceptedAnswer":{"@type":"Answer","text":"No. .gitignore tells git which files to exclude from version control — it has no effect on what your web server serves. A .env file that was excluded from git can still be copied into the webroot by a deploy script, rsync command, or CI artifact step. Prevention requires both keeping sensitive files out of git and keeping them out of the webroot."}},{"@type":"Question","name":"How do I prevent .git from being publicly accessible on an Nginx server?","acceptedAnswer":{"@type":"Answer","text":"Add a location block to your Nginx configuration that denies access to hidden directories: location ~ /\\. { deny all; return 404; }. This blocks all dot-prefixed paths — .git/, .env, .htaccess — with a single rule. After adding it, run nginx -t to test the configuration, then reload Nginx. Verify the block with: curl -s -o /dev/null -w \"%{http_code}\" https://your-site.com/.git/config — you should get a 404."}},{"@type":"Question","name":"How do I disable source maps in a production build?","acceptedAnswer":{"@type":"Answer","text":"It depends on your build tool. Vite: set build.sourcemap to false in vite.config.js (it defaults to false in production already; check you haven't overridden it). webpack: set devtool to false or 'hidden-source-map' (which generates maps but does not reference them from the bundle). Create React App: set the environment variable GENERATE_SOURCEMAP=false before your build command. Next.js: set productionBrowserSourceMaps: false in next.config.js. After rebuilding, verify by checking the Network tab in DevTools for any *.js.map requests."}},{"@type":"Question","name":"Where should I store secrets if not in .env files in the repo?","acceptedAnswer":{"@type":"Answer","text":"Use your hosting platform's native environment variable storage: Vercel Project Settings → Environment Variables, Netlify Site configuration → Environment variables, GitHub Actions → Repository Settings → Secrets and variables. These inject values at build or runtime without storing them in files. For local development, keep a .env file that is gitignored — never commit it. For team environments where sharing local .env is necessary, use a secrets manager like dotenv-vault or 1Password Secrets Automation rather than committing the file."}},{"@type":"Question","name":"My static site is on GitHub Pages. Can I set web server deny rules?","acceptedAnswer":{"@type":"Answer","text":"GitHub Pages does not support custom HTTP response headers or server-side deny rules. The only prevention approach on plain GitHub Pages is to never let sensitive files reach the repository in the first place — use a strict .gitignore, separate your build output from your project root, and build with source maps disabled. For server-side path blocking, proxy through Cloudflare (free tier) which supports Transform Rules, or migrate to Netlify or Vercel which both support custom redirect/header rules in a committed configuration file."}},{"@type":"Question","name":"How do I make sure database backup files never end up in the webroot?","acceptedAnswer":{"@type":"Answer","text":"Set your backup destination to a path that is explicitly outside the webroot. On a VPS with a webroot of /var/www/mysite/public/, write backups to /var/backups/mysite/ or a cloud storage bucket — never to /var/www/mysite/ or any subdirectory of it. Add the backup directory to your .gitignore as a secondary safety measure. If you use a managed database service (RDS, Supabase, PlanetScale), use their built-in backup/snapshot features rather than manual SQL dumps to a local path."}}]}
+</script>
+<link rel="stylesheet" href="../styles.css?v=1">
+<style>
+  .doc .lede{font-size:clamp(17px,2.3vw,20px);color:var(--muted)}
+  .doc h2{scroll-margin-top:80px}
+  .doc h3{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:19px;margin:22px 0 6px;letter-spacing:-.01em}
+  .toc{display:flex;flex-wrap:wrap;gap:10px;margin:22px 0 6px;padding:0;list-style:none}
+  .toc a{display:inline-block;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:7px 14px;font-size:14px;font-weight:600;color:var(--muted)}
+  .toc a:hover{border-color:var(--bay);color:var(--ink);text-decoration:none}
+  .callout.warn-callout{background:var(--fail-bg);border-left-color:var(--fail);color:#5e2019}
+  .callout.tip-callout{background:var(--pass-bg);border-left-color:var(--pass);color:#1b4d30}
+  .callout.note-callout{background:var(--warn-bg);border-left-color:var(--warn);color:#4d3208}
+  .doc code.inline{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.9em;background:var(--line-2);padding:2px 6px;border-radius:5px}
+  pre{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;overflow-x:auto;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.6;margin:12px 0}
+  pre code{background:none;padding:0;font-size:inherit}
+  .platform-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin:18px 0}
+  .platform-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+  .platform-card h3{margin:0 0 8px;font-size:16px;font-family:"Fraunces",Georgia,serif;font-weight:600}
+  .platform-card p{font-size:14px;color:var(--muted);margin:8px 0 0}
+  .platform-card pre{margin:10px 0 0;font-size:12.5px}
+  .checklist{margin:18px 0;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+  .checklist li{display:flex;gap:12px;align-items:flex-start;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;font-size:15px}
+  .checklist li::before{content:"☐";font-size:18px;flex-shrink:0;color:var(--muted);margin-top:-1px}
+  .suite{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:18px 0 6px}
+  .suite a{display:block;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow);transition:box-shadow .15s,transform .15s,border-color .15s}
+  .suite a:hover{text-decoration:none;box-shadow:var(--shadow-lift);transform:translateY(-2px);border-color:var(--line-2)}
+  .suite .s-name{font-family:"Fraunces",serif;font-weight:600;font-size:17px;color:var(--ink);display:block;margin:0 0 4px}
+  .suite p{color:var(--muted);font-size:14px;margin:0}
+  .suite .s-tag{display:inline-block;margin-bottom:8px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--bay);background:var(--bay-tint,#e8f4f6);border:1px solid #cfe1e3;border-radius:6px;padding:2px 8px}
+  .faq-section{margin:18px 0}
+  .faq-section details{border-bottom:1px solid var(--line);padding:14px 0}
+  .faq-section details:first-child{border-top:1px solid var(--line)}
+  .faq-section summary{font-weight:600;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .faq-section summary::-webkit-details-marker{display:none}
+  .faq-section summary::after{content:"+";font-size:20px;color:var(--muted);flex-shrink:0}
+  .faq-section details[open] summary::after{content:"\2212"}
+  .faq-section details p,.faq-section details ul,.faq-section details ol{margin:12px 0 4px;color:var(--muted)}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+
+<header class="masthead" role="banner">
+  <div class="wrap hdr-bar">
+    <a class="brand" href="../" aria-label="ExposureCheck — go to homepage">
+      <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M32 4 54 12v18c0 14-9 24-22 30C19 54 10 44 10 30V12L32 4Z" fill="none" stroke="#13525a" stroke-width="4" stroke-linejoin="round"/>
+        <path d="M22 30v-5a10 10 0 0 1 20 0v5" fill="none" stroke="#bf6b3c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="19" y="30" width="26" height="18" rx="3" fill="none" stroke="#bf6b3c" stroke-width="4"/>
+      </svg>
+      <span class="wordmark">ExposureCheck</span>
+    </a>
+    <nav class="nav" aria-label="Primary navigation">
+      <a href="../about.html">How it works</a>
+      <a href="../">Scan your site</a>
+      <a href="how-to-check-website-exposed-files.html">Audit guide</a>
+      <a href="fix-exposed-env-file.html">Fix guides</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+<article class="doc">
+  <div class="wrap narrow">
+    <p class="eyebrow" style="text-align:left">Prevention guide</p>
+    <h1>How to prevent exposed files on your website</h1>
+    <p class="lede">Sensitive file exposures aren't random — they follow predictable root causes that you can eliminate before deployment. This guide covers the structural changes, server rules, and pipeline hygiene that stop <code class="inline">.env</code> files, <code class="inline">.git</code> directories, source maps, and database backups from ever reaching a publicly accessible path.</p>
+
+    <ul class="toc" aria-label="On this page">
+      <li><a href="#root-causes">Root causes</a></li>
+      <li><a href="#webroot-separation">Webroot separation</a></li>
+      <li><a href="#secrets-management">Secrets management</a></li>
+      <li><a href="#server-deny-rules">Server deny rules</a></li>
+      <li><a href="#source-maps">Disable source maps</a></li>
+      <li><a href="#backups">Backup hygiene</a></li>
+      <li><a href="#predeploy-checklist">Pre-deploy checklist</a></li>
+      <li><a href="#faq">FAQ</a></li>
+    </ul>
+
+    <h2 id="root-causes">Why files get exposed: four root causes</h2>
+    <p>Understanding the failure mode is the fastest path to a structural fix. The vast majority of file exposures come from one of four places:</p>
+    <ol>
+      <li><strong>Webroot equals project root.</strong> The web server serves the entire project directory, including <code class="inline">.env</code>, <code class="inline">.git/</code>, <code class="inline">node_modules/</code>, and config files that should never be public. This is the most common cause on VPS deployments where the developer ran <code class="inline">git clone</code> directly into <code class="inline">/var/www/</code>.</li>
+      <li><strong>Secrets committed to version control.</strong> A <code class="inline">.env</code> file checked into git — even once, even briefly — lives in the commit history. If the repo is later cloned to a publicly served path, or if <code class="inline">/.git/</code> becomes accessible, those secrets are recoverable.</li>
+      <li><strong>No server-side path blocking.</strong> The server has no deny rules for sensitive paths. If a file does end up in the webroot by accident, there is nothing to catch it.</li>
+      <li><strong>Source maps left enabled in production.</strong> The build tool default includes source maps. No one turned them off before the first production deploy.</li>
+    </ol>
+    <p>Each section below addresses one of these causes directly.</p>
+
+    <h2 id="webroot-separation">Separate your project root from your webroot</h2>
+    <p>The most structurally sound prevention is also the simplest: deploy only your build output, not your entire project.</p>
+
+    <p>A typical Node/JS project structure:</p>
+    <pre><code>myproject/           ← project root (never serve this)
+  .env               ← secrets
+  .git/              ← git history
+  node_modules/      ← dependencies
+  src/               ← source code
+  dist/              ← build output (serve only this)</code></pre>
+
+    <p>On managed platforms like Netlify and Vercel, this separation is enforced by default — you specify a publish directory (<code class="inline">dist/</code>, <code class="inline">out/</code>, <code class="inline">public/</code>) and only that directory is served. Files outside it are never accessible regardless of what they contain.</p>
+
+    <p>On a VPS or self-managed server, you must create this separation deliberately:</p>
+    <pre><code># Wrong: serving the project root
+/var/www/mysite/       ← git clone lands here; webroot is /var/www/mysite/
+
+# Right: serving only the build output
+/home/deploy/mysite/   ← git clone and build happens here
+/var/www/mysite/       ← Nginx webroot; only dist/ contents are copied here</code></pre>
+
+    <p>Your deploy script should copy (or rsync) only the build output to the webroot, not the project root:</p>
+    <pre><code>npm run build
+rsync -av --delete dist/ /var/www/mysite/</code></pre>
+
+    <div class="callout tip-callout">
+      <strong>Symlink pattern for zero-downtime deploys.</strong> For production VPS deployments, a common pattern is to deploy to a timestamped directory (<code class="inline">/var/www/releases/20260725/</code>), then atomically move the <code class="inline">current</code> symlink. This also makes rollback instant and ensures the webroot never contains a partial deploy.
+    </div>
+
+    <h2 id="secrets-management">Keep secrets out of files and out of git</h2>
+    <p>A <code class="inline">.env</code> file should exist only in two places: your local development machine (gitignored), and your hosting platform's native secret store. It should never enter version control.</p>
+
+    <h3>Local development</h3>
+    <p>Your <code class="inline">.gitignore</code> should include these entries from the first commit:</p>
+    <pre><code>.env
+.env.local
+.env.*.local
+.env.production
+.env.backup
+.env.old</code></pre>
+    <p>Use <code class="inline">git status --short</code> before every commit to confirm no <code class="inline">.env</code> variants are staged. Even better, run <a href="https://labs.copperbaytech.com/leakcheck/" target="_blank" rel="noopener noreferrer">LeakCheck</a> on any changed file before committing — it catches secrets that slip past filename checks (hardcoded values, not just standalone .env files).</p>
+
+    <h3>Platform secret stores (inject at build/runtime, not in files)</h3>
+    <div class="platform-grid">
+      <div class="platform-card">
+        <h3>Vercel</h3>
+        <p>Project Settings → Environment Variables. Set separate values for Production, Preview, and Development. Secrets are injected as environment variables at build time and runtime.</p>
+      </div>
+      <div class="platform-card">
+        <h3>Netlify</h3>
+        <p>Site configuration → Environment variables. Netlify injects them during the build process; they are never written to a file in the deploy output.</p>
+      </div>
+      <div class="platform-card">
+        <h3>GitHub Actions</h3>
+        <p>Repository Settings → Secrets and variables → Actions. Reference them in your workflow as <code class="inline">${{ secrets.MY_SECRET }}</code>. They appear as masked strings in logs and are never stored in the repository.</p>
+      </div>
+      <div class="platform-card">
+        <h3>VPS / Docker</h3>
+        <p>Pass secrets as environment variables at runtime via <code class="inline">docker run -e SECRET=value</code>, <code class="inline">docker-compose</code> env_file pointing to a non-committed file, or a secrets manager like HashiCorp Vault or AWS Secrets Manager.</p>
+      </div>
+    </div>
+
+    <div class="callout note-callout">
+      <strong>Check your history if you've ever committed .env.</strong> Platform secret stores prevent future exposure, but an <code class="inline">.env</code> that was committed even once survives in git history. If this has happened, follow the <a href="fix-exposed-env-file.html">remediation guide</a> — specifically the git history scrubbing steps in Step 4 — and rotate every credential that was ever in that file.
+    </div>
+
+    <h2 id="server-deny-rules">Block sensitive paths at the server level</h2>
+    <p>Even with good webroot separation, a misconfiguration or accidental file copy can slip through. Server-level deny rules are your safety net — they block any request to a sensitive path regardless of how the file got there.</p>
+
+    <h3>The paths worth blocking explicitly</h3>
+    <p>A single rule covering all dot-prefixed paths handles most of them:</p>
+
+    <div class="platform-grid">
+      <div class="platform-card">
+        <h3>Nginx</h3>
+        <pre><code># In your server {} block:
+location ~ /\. {
+  deny all;
+  return 404;
+}</code></pre>
+        <p>Blocks <code class="inline">/.env</code>, <code class="inline">/.git/</code>, <code class="inline">/.htaccess</code>, and all other hidden paths. Test with <code class="inline">nginx -t</code> before reloading.</p>
+      </div>
+      <div class="platform-card">
+        <h3>Apache / .htaccess</h3>
+        <pre><code>&lt;FilesMatch "^\.">
+  Require all denied
+&lt;/FilesMatch>
+
+# Also block common backup extensions
+&lt;FilesMatch "\.(sql|bak|old|backup)$">
+  Require all denied
+&lt;/FilesMatch></code></pre>
+      </div>
+      <div class="platform-card">
+        <h3>Netlify (_redirects)</h3>
+        <pre><code>/.env 404
+/.env.* 404
+/.git/* 404
+/*.sql 404
+/*.sql.gz 404</code></pre>
+        <p>Or use <code class="inline">netlify.toml</code> with <code class="inline">[[redirects]]</code> blocks set to status 404.</p>
+      </div>
+      <div class="platform-card">
+        <h3>Vercel (vercel.json)</h3>
+        <pre><code>{
+  "headers": [],
+  "rewrites": [],
+  "redirects": [
+    {
+      "source": "/.env",
+      "destination": "/404",
+      "statusCode": 404
+    },
+    {
+      "source": "/.git/:path*",
+      "destination": "/404",
+      "statusCode": 404
+    }
+  ]
+}</code></pre>
+      </div>
+      <div class="platform-card">
+        <h3>Cloudflare Pages (_headers)</h3>
+        <pre><code># No native redirect rules in _headers;
+# use a _redirects file (same syntax as Netlify):
+/.env 404
+/.git/* 404
+/*.sql 404</code></pre>
+      </div>
+    </div>
+
+    <div class="callout note-callout">
+      <strong>GitHub Pages has no server-side deny rules.</strong> Plain GitHub Pages serves files directly from a repository branch and does not support custom response headers or deny rules. Prevention on GitHub Pages relies entirely on keeping sensitive files out of the repository in the first place. If you need server-level controls, proxy through Cloudflare (free tier) or migrate to Netlify or Vercel.
+    </div>
+
+    <h2 id="source-maps">Disable source maps in production builds</h2>
+    <p>Source maps are generated by default in most build tools to help with debugging. In production, they expose your original source code — including file paths, TypeScript types, comments, and any hardcoded values present during development — to anyone who opens DevTools.</p>
+
+    <div class="platform-grid">
+      <div class="platform-card">
+        <h3>Vite</h3>
+        <pre><code>// vite.config.js
+export default {
+  build: {
+    sourcemap: false  // default is false
+                      // check you haven't overridden it
+  }
+}</code></pre>
+      </div>
+      <div class="platform-card">
+        <h3>webpack</h3>
+        <pre><code>// webpack.config.js (production)
+module.exports = {
+  devtool: false,
+  // or 'hidden-source-map' to generate
+  // maps without referencing them in bundles
+}</code></pre>
+      </div>
+      <div class="platform-card">
+        <h3>Create React App</h3>
+        <pre><code># .env.production or build command:
+GENERATE_SOURCEMAP=false npm run build</code></pre>
+      </div>
+      <div class="platform-card">
+        <h3>Next.js</h3>
+        <pre><code>// next.config.js
+module.exports = {
+  productionBrowserSourceMaps: false,
+  // default is false; verify it hasn't been enabled
+}</code></pre>
+      </div>
+    </div>
+
+    <p>After rebuilding, verify the change: open the site in DevTools → Sources/Debugger. If you see <code class="inline">webpack://</code> or <code class="inline">vite://</code> tree entries with your original filenames, source maps are still active. Also check the Network tab for any <code class="inline">*.js.map</code> requests with 200 responses.</p>
+
+    <h2 id="backups">Database backup hygiene</h2>
+    <p>A database dump placed in the webroot during maintenance — and never removed — is a complete data breach waiting to be discovered. The fix is a location discipline that is easy to enforce once and never think about again:</p>
+    <ul>
+      <li><strong>Never write backups to the webroot or any subdirectory of it.</strong> On a VPS with a webroot at <code class="inline">/var/www/mysite/public/</code>, write backups to <code class="inline">/var/backups/mysite/</code> or an S3/GCS bucket.</li>
+      <li><strong>Use your managed database's built-in backup feature.</strong> RDS automated backups, Supabase Point-in-Time Recovery, PlanetScale branching — these never touch your server's filesystem.</li>
+      <li><strong>If you must take a manual dump, stream it directly to object storage</strong> rather than writing to disk first: <code class="inline">pg_dump mydb | gzip | aws s3 cp - s3://my-backup-bucket/mydb-$(date +%Y%m%d).sql.gz</code></li>
+      <li><strong>Add backup patterns to your <code class="inline">.gitignore</code></strong> as a secondary safety measure: <code class="inline">*.sql</code>, <code class="inline">*.sql.gz</code>, <code class="inline">*.bak</code>, <code class="inline">dump.sql</code>.</li>
+    </ul>
+
+    <h2 id="predeploy-checklist">Pre-deploy verification checklist</h2>
+    <p>Run this before every launch and after every significant infrastructure change:</p>
+    <ul class="checklist">
+      <li><strong>Webroot contains only build output.</strong> Confirm your CI/CD or deploy script copies only <code class="inline">dist/</code> (or equivalent), not the project root.</li>
+      <li><strong>No <code class="inline">.env</code> variants are staged or tracked.</strong> Run <code class="inline">git ls-files | grep '\.env'</code> — the output should be empty.</li>
+      <li><strong>Source maps are disabled.</strong> Check your build config. Verify after building by inspecting the Network tab for <code class="inline">*.js.map</code> requests.</li>
+      <li><strong>Server deny rules are in place.</strong> Confirm your Nginx/Apache config or platform <code class="inline">_redirects</code> / <code class="inline">vercel.json</code> blocks hidden paths and SQL files.</li>
+      <li><strong>No backup files in the webroot.</strong> Confirm your backup destination is outside the served directory tree.</li>
+      <li><strong>Run ExposureCheck on the live URL.</strong> Automated path probing and bundle scanning after every deploy catches anything the above steps missed.</li>
+    </ul>
+
+    <p style="margin:24px 0 8px"><a class="btn primary" href="../">Run ExposureCheck on your live site &rarr;</a></p>
+
+    <h2 id="faq">Frequently asked questions</h2>
+    <div class="faq-section">
+      <details open>
+        <summary>What is the single most effective thing I can do to prevent .env exposure?</summary>
+        <p>Keep your project root and your webroot separate. When your deploy process copies only a specific build output directory (<code class="inline">dist/</code>, <code class="inline">public/</code>, <code class="inline">out/</code>) to the server — not your entire project folder — files like <code class="inline">.env</code>, <code class="inline">.git/</code>, and <code class="inline">node_modules/</code> never enter the served file tree. On Netlify and Vercel this is the default; on VPS deployments it requires deliberately setting your webroot to the build output directory rather than the project root.</p>
+      </details>
+      <details>
+        <summary>Does .gitignore prevent a file from being served publicly?</summary>
+        <p><code class="inline">.gitignore</code> tells git which files to exclude from version control — it has no effect on what your web server serves. A <code class="inline">.env</code> file that was excluded from git can still be copied into the webroot by a deploy script, rsync command, or CI artifact step. Prevention requires both keeping sensitive files out of git <em>and</em> keeping them out of the webroot.</p>
+      </details>
+      <details>
+        <summary>How do I prevent .git from being publicly accessible on Nginx?</summary>
+        <p>Add a location block that denies all hidden paths:</p>
+        <pre><code>location ~ /\. {
+  deny all;
+  return 404;
+}</code></pre>
+        <p>This single rule blocks <code class="inline">/.git/</code>, <code class="inline">/.env</code>, and all other dot-prefixed paths. Run <code class="inline">nginx -t</code> to test, then reload. Verify: <code class="inline">curl -s -o /dev/null -w "%{http_code}" https://your-site.com/.git/config</code> should return 404.</p>
+      </details>
+      <details>
+        <summary>How do I disable source maps in a production build?</summary>
+        <p>It depends on your build tool. <strong>Vite:</strong> set <code class="inline">build.sourcemap: false</code> in <code class="inline">vite.config.js</code> (it defaults to false in production; check you haven't overridden it). <strong>webpack:</strong> set <code class="inline">devtool: false</code> or <code class="inline">'hidden-source-map'</code>. <strong>Create React App:</strong> set <code class="inline">GENERATE_SOURCEMAP=false</code> before your build command. <strong>Next.js:</strong> set <code class="inline">productionBrowserSourceMaps: false</code> in <code class="inline">next.config.js</code>. After rebuilding, verify by checking the Network tab in DevTools for any <code class="inline">*.js.map</code> requests.</p>
+      </details>
+      <details>
+        <summary>Where should I store secrets if not in .env files in the repo?</summary>
+        <p>Use your hosting platform's native environment variable storage: Vercel Project Settings → Environment Variables; Netlify Site configuration → Environment variables; GitHub Actions → Repository Settings → Secrets. For local development, keep a gitignored <code class="inline">.env</code> file. For teams that need to share development secrets, use a secrets manager like dotenv-vault, 1Password Secrets Automation, or Doppler — never commit the file itself.</p>
+      </details>
+      <details>
+        <summary>My static site is on GitHub Pages. Can I set server deny rules?</summary>
+        <p>GitHub Pages does not support custom server-side deny rules. Prevention on GitHub Pages relies entirely on keeping sensitive files out of the repository. For server-level controls, proxy through Cloudflare (free tier, supports Transform Rules) or migrate to Netlify or Vercel, both of which support deny rules via a committed config file.</p>
+      </details>
+      <details>
+        <summary>How do I make sure database backup files never end up in the webroot?</summary>
+        <p>Set your backup destination to a path explicitly outside the webroot — e.g. <code class="inline">/var/backups/mysite/</code> on a VPS, or a cloud storage bucket. Never write backups to <code class="inline">/var/www/</code> or any subdirectory of your serve path. If you use a managed database service (RDS, Supabase, PlanetScale), use their built-in backup features rather than manual SQL dumps to a local path.</p>
+      </details>
+    </div>
+
+    <p style="margin:32px 0 6px"><a href="how-to-check-website-exposed-files.html" style="font-weight:600">Need to audit a live site for existing exposures? Use the audit guide &rarr;</a></p>
+    <p style="margin:4px 0 0"><a href="fix-exposed-env-file.html" style="font-weight:600">Found something already exposed? Follow the step-by-step remediation guide &rarr;</a></p>
+
+    <h2 style="margin-top:48px">Also in the Copper Bay Labs ship-safety suite</h2>
+    <p>Exposed files are one part of a broader pre-launch security and compliance picture:</p>
+    <div class="suite">
+      <a href="https://labs.copperbaytech.com/leakcheck/" target="_blank" rel="noopener noreferrer">
+        <span class="s-tag">Pre-commit</span>
+        <span class="s-name">LeakCheck</span>
+        <p>Paste code or your <code class="inline">.env</code> and find hardcoded API keys and secrets before they reach the repo.</p>
+      </a>
+      <a href="../">
+        <span class="s-tag">Post-deploy</span>
+        <span class="s-name">ExposureCheck</span>
+        <p>Automated scan of your live URL for exposed <code class="inline">.env</code>, <code class="inline">.git</code>, source maps, and bundled secrets.</p>
+      </a>
+      <a href="https://labs.copperbaytech.com/hardencheck/" target="_blank" rel="noopener noreferrer">
+        <span class="s-tag">HTTP headers</span>
+        <span class="s-name">HardenCheck</span>
+        <p>Scan your security headers — CSP, HSTS, X-Frame-Options, cookie flags — and get an A–F report card with fixes.</p>
+      </a>
+    </div>
+  </div>
+</article>
+</main>
+
+<footer class="footer" role="contentinfo">
+  <div class="wrap foot">
+    <div>
+      <a class="brand small" href="../" aria-label="ExposureCheck — homepage">
+        <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M32 4 54 12v18c0 14-9 24-22 30C19 54 10 44 10 30V12L32 4Z" fill="none" stroke="#cbd2da" stroke-width="4" stroke-linejoin="round"/>
+          <path d="M22 30v-5a10 10 0 0 1 20 0v5" fill="none" stroke="#bf6b3c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="19" y="30" width="26" height="18" rx="3" fill="none" stroke="#bf6b3c" stroke-width="4"/>
+        </svg>
+        <span class="wordmark">ExposureCheck</span>
+      </a>
+      <p class="fine">Heuristic self-check, not a security guarantee. Scan only sites you own.</p>
+    </div>
+    <nav class="foot-nav" aria-label="Footer navigation">
+      <a href="../about.html">How it works</a>
+      <a href="../">Scan your site</a>
+      <a href="prevent-exposed-files-website.html">Prevention guide</a>
+      <a href="how-to-check-website-exposed-files.html">Audit guide</a>
+      <a href="fix-exposed-env-file.html">Fix exposed files</a>
+      <a href="https://labs.copperbaytech.com/leakcheck/" target="_blank" rel="noopener noreferrer">LeakCheck</a>
+      <a href="https://labs.copperbaytech.com/shipsafe/" target="_blank" rel="noopener noreferrer">ShipSafe</a>
+      <a href="https://copperbaytech.com" target="_blank" rel="noopener noreferrer">Secure my project &rarr;</a>
+    </nav>
+  </div>
+  <div class="wrap">
+    <p class="madeby">A <a href="https://copperbaytech.com" target="_blank" rel="noopener noreferrer">Copper Bay Labs</a> product.</p>
+  </div>
+</footer>
+</body>
+</html>
