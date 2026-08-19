@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pre-Launch Exposed Files Security Audit Checklist (2026)</title>
+<meta name="description" content="A systematic checklist for finding exposed .env files, .git directories, database dumps, and misconfigured paths before a website goes live — before automated scanners find them first.">
+<link rel="canonical" href="https://labs.copperbaytech.com/exposurecheck/guides/pre-launch-exposed-files-audit.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="ExposureCheck">
+<meta property="og:title" content="Pre-Launch Exposed Files Security Audit Checklist (2026)">
+<meta property="og:description" content="A systematic checklist for finding exposed .env files, .git directories, database dumps, and misconfigured paths before a website goes live — before automated scanners find them first.">
+<meta property="og:url" content="https://labs.copperbaytech.com/exposurecheck/guides/pre-launch-exposed-files-audit.html">
+<meta property="og:image" content="https://labs.copperbaytech.com/exposurecheck/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#faf8f4">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"Pre-Launch Exposed Files Security Audit Checklist (2026)","description":"A systematic checklist for finding exposed .env files, .git directories, database dumps, source maps, and misconfigured server paths before a website goes live.","author":{"@type":"Organization","name":"Copper Bay Labs","url":"https://copperbaytech.com"},"publisher":{"@type":"Organization","name":"Copper Bay Labs","url":"https://copperbaytech.com"},"datePublished":"2026-08-19","dateModified":"2026-08-19","mainEntityOfPage":"https://labs.copperbaytech.com/exposurecheck/guides/pre-launch-exposed-files-audit.html","mainEntity":{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Can ExposureCheck scan a staging URL that's password-protected?","acceptedAnswer":{"@type":"Answer","text":"No. ExposureCheck makes real HTTP requests to your URL. If the staging environment requires HTTP Basic Auth or is behind a VPN, the scanner cannot access it. Run the scan after removing the staging password, or run it on the live domain after DNS propagation."}},{"@type":"Question","name":"What's the security difference between a 403 and a 404 for a path like /.env?","acceptedAnswer":{"@type":"Answer","text":"A 403 (Forbidden) means the file or path exists but the server is blocking access. A 404 (Not Found) means the path returns no content. From a security standpoint, 404 is preferable: it reveals less about your server's file structure. A 403 on /.env is better than a 200 (the file is exposed), but the best configuration returns 404 for all sensitive paths."}},{"@type":"Question","name":"Should source maps be accessible in production?","acceptedAnswer":{"@type":"Answer","text":"It depends on your threat model. Source maps make debugging production errors much easier and are generally acceptable for non-sensitive applications. However, if your frontend code contains business logic, proprietary algorithms, or comments that reveal architecture details, serving source maps publicly exposes that. The safest approach for sensitive apps is to exclude source maps from the production build or serve them only to your error-tracking service."}},{"@type":"Question","name":"My staging server returns 200 for /.env but the file is empty — is that a problem?","acceptedAnswer":{"@type":"Answer","text":"Yes, for two reasons. First, an empty .env on staging may not be empty on production — the path being accessible is the configuration gap. Second, automated scanners that find a 200 response on /.env log the URL and retry periodically. Fix the server configuration to return 404 for that path, not just make the file empty."}},{"@type":"Question","name":"What if I'm on shared hosting and can't configure server rules?","acceptedAnswer":{"@type":"Answer","text":"On Apache-based shared hosting, you can add a .htaccess file in your web root to block specific paths. Add deny blocks for .env files, .git directories, and backup extensions. On Netlify or Vercel, use _headers or vercel.json rewrite rules to return 404 for sensitive paths."}},{"@type":"Question","name":"How often should I run ExposureCheck after launch?","acceptedAnswer":{"@type":"Answer","text":"Run it immediately after launch, then again after any significant server configuration change, CMS update, or deployment that changes your document root structure. A monthly scan is a reasonable baseline for sites that change infrequently. For actively developed sites, add it to your deployment checklist."}}]}}
+</script>
+<link rel="stylesheet" href="../styles.css?v=1">
+<style>
+  .doc .lede{font-size:clamp(17px,2.3vw,20px);color:var(--muted)}
+  .doc h2{scroll-margin-top:80px}
+  .doc h3{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:19px;margin:22px 0 6px;letter-spacing:-.01em}
+  .toc{display:flex;flex-wrap:wrap;gap:10px;margin:22px 0 6px;padding:0;list-style:none}
+  .toc a{display:inline-block;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:7px 14px;font-size:14px;font-weight:600;color:var(--muted)}
+  .toc a:hover{border-color:var(--bay);color:var(--ink);text-decoration:none}
+  .callout.warn-callout{background:var(--fail-bg);border-left-color:var(--fail);color:#5e2019}
+  .callout.tip-callout{background:var(--pass-bg);border-left-color:var(--pass);color:#1b4d30}
+  .doc code.inline{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.9em;background:var(--line-2);padding:2px 6px;border-radius:5px}
+  pre{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;overflow-x:auto;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.6;margin:12px 0}
+  pre code{background:none;padding:0;font-size:inherit}
+  .check-grid{display:grid;gap:14px;margin:18px 0}
+  .check-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+  .check-card h3{margin:0 0 6px;font-size:17px}
+  .check-card p{margin:0;color:var(--muted);font-size:14px}
+  .check-card .paths{margin:10px 0 0;padding:0;list-style:none;display:flex;flex-wrap:wrap;gap:6px}
+  .check-card .paths li code{background:var(--line-2);border-radius:5px;padding:3px 8px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;font-weight:600}
+  .status-table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px}
+  .status-table th{text-align:left;padding:10px 12px;background:var(--surface);border-bottom:2px solid var(--line);font-weight:600}
+  .status-table td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  .status-table tr:last-child td{border-bottom:none}
+  .s-200{color:#8b1a0a;font-weight:700}
+  .s-403{color:#5a4010;font-weight:700}
+  .s-404{color:#1b4d30;font-weight:700}
+  .steps{margin:18px 0;padding-left:0;list-style:none;counter-reset:step}
+  .steps>li{position:relative;padding:4px 0 20px 46px;counter-increment:step}
+  .steps>li::before{content:counter(step);position:absolute;left:0;top:2px;width:30px;height:30px;border-radius:50%;background:var(--bay);color:#fff;font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;font-family:"Fraunces",serif}
+  .steps>li strong{display:block;margin-bottom:4px}
+  .suite{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:18px 0 6px}
+  .suite a{display:block;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow);transition:box-shadow .15s,transform .15s,border-color .15s}
+  .suite a:hover{text-decoration:none;box-shadow:var(--shadow-lift);transform:translateY(-2px);border-color:var(--line-2)}
+  .suite .s-name{font-family:"Fraunces",serif;font-weight:600;font-size:17px;color:var(--ink);display:block;margin:0 0 4px}
+  .suite p{color:var(--muted);font-size:14px;margin:0}
+  .suite .s-tag{display:inline-block;margin-bottom:8px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--bay);background:var(--bay-tint,#e8f4f6);border:1px solid #cfe1e3;border-radius:6px;padding:2px 8px}
+  .faq-section{margin:18px 0}
+  .faq-section details{border-bottom:1px solid var(--line);padding:14px 0}
+  .faq-section details:first-child{border-top:1px solid var(--line)}
+  .faq-section summary{font-weight:600;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .faq-section summary::-webkit-details-marker{display:none}
+  .faq-section summary::after{content:"+";font-size:20px;color:var(--muted);flex-shrink:0}
+  .faq-section details[open] summary::after{content:"\2212"}
+  .faq-section details p,.faq-section details ul{margin:12px 0 4px;color:var(--muted)}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+
+<header class="masthead" role="banner">
+  <div class="wrap hdr-bar">
+    <a class="brand" href="../" aria-label="ExposureCheck — go to homepage">
+      <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M32 4 54 12 V30 C54 44 45 54 32 60 C19 54 10 44 10 30 V12 Z" fill="#2e86ab"/>
+        <path d="M32 10 48 16 V30 C48 41 41.5 49 32 54 C22.5 49 16 41 16 30 V16 Z" fill="#14181f"/>
+        <circle cx="29" cy="30" r="8.5" fill="none" stroke="#2e86ab" stroke-width="3"/>
+        <line x1="35" y1="36" x2="42" y2="43" stroke="#2e86ab" stroke-width="3.5" stroke-linecap="round"/>
+      </svg>
+      <span class="wordmark">ExposureCheck</span>
+    </a>
+    <nav class="nav" aria-label="Primary navigation">
+      <a href="fix-exposed-env-file.html">Fix .env exposure</a>
+      <a href="how-to-check-website-exposed-files.html">Check exposed files</a>
+      <a href="prevent-exposed-files-website.html">Prevention guide</a>
+      <a href="pre-launch-exposed-files-audit.html" aria-current="page">Pre-launch audit</a>
+      <a href="../">Scan a URL</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+<article class="doc">
+  <div class="wrap narrow">
+    <p class="eyebrow" style="text-align:left">Pre-launch security audit</p>
+    <h1>Exposed Files Checklist: What to Scan Before a Website Goes Live</h1>
+    <p class="lede">Automated crawlers and vulnerability scanners index new domains within hours of launch. This checklist walks through what to check on your staging environment — before DNS points at it and before those scanners get there first.</p>
+
+    <div class="callout warn-callout">
+      <strong>Run this on staging, not just after launch.</strong> Once a site is live and indexed, exposures can be logged by scanners within hours. The pre-launch window is your best opportunity to close these gaps before they become records in a threat-intelligence database.
+    </div>
+
+    <ul class="toc" aria-label="On this page">
+      <li><a href="#why-pre-launch">Why timing matters</a></li>
+      <li><a href="#what-to-check">What to check for</a></li>
+      <li><a href="#http-status">HTTP status codes</a></li>
+      <li><a href="#server-config">Server configuration</a></li>
+      <li><a href="#build-artifacts">Build artifacts</a></li>
+      <li><a href="#run-exposurecheck">Run ExposureCheck</a></li>
+      <li><a href="#workflow">Launch workflow</a></li>
+      <li><a href="#faq">FAQ</a></li>
+    </ul>
+
+    <h2 id="why-pre-launch">Why the staging window matters</h2>
+    <p>Internet-wide scanners — including Shodan, Censys, commercial vulnerability databases, and automated bots — probe large blocks of IP space continuously and index new hostnames within hours of first seeing them. Once a URL returns a 200 response for <code class="inline">/.env</code>, that response can be logged, scraped, and retained even if you block the path the next day.</p>
+    <p>The pre-launch window — your staging environment before DNS cutover, and the first 24 hours post-launch — is the critical moment. Catching an exposed file before launch costs minutes to fix. Catching it after a scanner has already exfiltrated the contents means rotating all exposed credentials, reviewing access logs, and potentially notifying affected users. The gap between those two outcomes is entirely a function of when you check.</p>
+
+    <h2 id="what-to-check">What to scan for</h2>
+    <p>These are the ten categories of sensitive paths that ExposureCheck tests for. Each includes the most commonly exposed paths in that category:</p>
+
+    <div class="check-grid">
+      <div class="check-card">
+        <h3>1. Environment files</h3>
+        <p>The highest-severity category. These files contain API keys, database credentials, and service tokens. They are frequently left in the web root by accident during deployment.</p>
+        <ul class="paths"><li><code>/.env</code></li><li><code>/.env.local</code></li><li><code>/.env.production</code></li><li><code>/.env.staging</code></li><li><code>/.env.example</code></li><li><code>/.env.bak</code></li></ul>
+      </div>
+      <div class="check-card">
+        <h3>2. Version control directories</h3>
+        <p>An exposed <code class="inline">/.git/</code> directory gives an attacker read access to your complete source code history, including every file ever committed — even files deleted from later commits.</p>
+        <ul class="paths"><li><code>/.git/config</code></li><li><code>/.git/HEAD</code></li><li><code>/.svn/entries</code></li><li><code>/.hg/store</code></li></ul>
+      </div>
+      <div class="check-card">
+        <h3>3. Database dumps and backups</h3>
+        <p>Database exports dropped into a web-accessible directory are a common data breach vector. These files contain full table contents — user records, hashed passwords, payment references.</p>
+        <ul class="paths"><li><code>/backup.sql</code></li><li><code>/dump.sql</code></li><li><code>/database.sql</code></li><li><code>/db.sql.gz</code></li><li><code>/backup.tar.gz</code></li></ul>
+      </div>
+      <div class="check-card">
+        <h3>4. Configuration file backups</h3>
+        <p>Editors and deployment tools sometimes create backup copies of config files with discoverable suffixes. These retain the original file's credentials in plaintext.</p>
+        <ul class="paths"><li><code>/wp-config.php.bak</code></li><li><code>/config.php.old</code></li><li><code>/settings.py.bak</code></li><li><code>/application.yml.orig</code></li><li><code>/config.json.bak</code></li></ul>
+      </div>
+      <div class="check-card">
+        <h3>5. Private key and credential files</h3>
+        <p>Service account keys, OAuth credential files, and private key files placed in the web root give immediate unauthorized access to the services they authenticate.</p>
+        <ul class="paths"><li><code>/credentials.json</code></li><li><code>/serviceAccountKey.json</code></li><li><code>/private.pem</code></li><li><code>/id_rsa</code></li><li><code>/client_secret.json</code></li></ul>
+      </div>
+      <div class="check-card">
+        <h3>6. Log files</h3>
+        <p>Application and error logs in the web root expose stack traces, library versions, user activity, and sometimes API keys or session tokens written during debug logging.</p>
+        <ul class="paths"><li><code>/error.log</code></li><li><code>/debug.log</code></li><li><code>/app.log</code></li><li><code>/logs/access.log</code></li><li><code>/storage/logs/laravel.log</code></li></ul>
+      </div>
+      <div class="check-card">
+        <h3>7. Source maps</h3>
+        <p>JavaScript and CSS source maps reconstruct your original source from the compiled bundle. For apps with proprietary logic or sensitive comments in the source, serving maps publicly exposes that code.</p>
+        <ul class="paths"><li><code>/static/js/main.*.js.map</code></li><li><code>/assets/*.js.map</code></li><li><code>/dist/*.css.map</code></li></ul>
+      </div>
+      <div class="check-card">
+        <h3>8. Directory listing enabled</h3>
+        <p>If directory listing is enabled, any path without an index file returns a browseable file list. Check upload and media directories specifically.</p>
+        <ul class="paths"><li><code>/uploads/</code></li><li><code>/media/</code></li><li><code>/files/</code></li><li><code>/backup/</code></li></ul>
+      </div>
+      <div class="check-card">
+        <h3>9. .DS_Store and IDE files</h3>
+        <p>macOS <code class="inline">.DS_Store</code> files and editor project files reveal directory structure. Downloading <code class="inline">/.DS_Store</code> reveals the filenames in that directory even without directory listing enabled.</p>
+        <ul class="paths"><li><code>/.DS_Store</code></li><li><code>/.idea/workspace.xml</code></li><li><code>/.vscode/settings.json</code></li><li><code>/Thumbs.db</code></li></ul>
+      </div>
+      <div class="check-card">
+        <h3>10. Admin paths and exposed APIs</h3>
+        <p>Development admin panels, API documentation left accessible in production, and default CMS admin paths that haven't been relocated are found by scanners within hours of launch.</p>
+        <ul class="paths"><li><code>/phpmyadmin/</code></li><li><code>/adminer.php</code></li><li><code>/api/docs</code></li><li><code>/swagger-ui.html</code></li><li><code>/.well-known/</code></li></ul>
+      </div>
+    </div>
+
+    <h2 id="http-status">Reading HTTP status codes</h2>
+    <p>When you probe a path manually with <code class="inline">curl -I</code>, the response status code tells you exactly what's happening:</p>
+
+    <table class="status-table">
+      <thead>
+        <tr><th>Status</th><th>What it means</th><th>Action required</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="s-200">200 OK</span></td>
+          <td>The file or path is publicly accessible. If the response body contains credentials or config, this is an active exposure.</td>
+          <td><strong>Fix before launch</strong> — block the path in server config or remove the file from the web root.</td>
+        </tr>
+        <tr>
+          <td><span class="s-403">403 Forbidden</span></td>
+          <td>The file or directory exists and the server is blocking access. The resource is present but protected.</td>
+          <td><strong>Better, but not ideal.</strong> A 403 confirms the resource exists to a scanner. Prefer a rewrite rule that returns 404, or remove the file entirely.</td>
+        </tr>
+        <tr>
+          <td><span class="s-404">404 Not Found</span></td>
+          <td>The path returns no content — either the file doesn't exist, or the server is hiding it via a rewrite rule.</td>
+          <td><strong>Correct result.</strong> Sensitive paths should return 404 — they reveal nothing about server structure.</td>
+        </tr>
+        <tr>
+          <td>301&nbsp;/&nbsp;302</td>
+          <td>Redirect, usually to a login page or custom error. Generally fine.</td>
+          <td>Follow the redirect and verify the destination doesn't expose sensitive content.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>Quick manual check with <code class="inline">curl</code> (use <code class="inline">-I</code> for HEAD requests — no body download, faster):</p>
+    <pre><code># Check specific paths on staging
+curl -I https://staging.yoursite.com/.env
+curl -I https://staging.yoursite.com/.git/config
+curl -I https://staging.yoursite.com/wp-config.php.bak
+
+# Check for directory listing
+curl https://staging.yoursite.com/uploads/
+# Look for "Index of /" in the response body</code></pre>
+
+    <h2 id="server-config">Blocking sensitive paths in server configuration</h2>
+    <p>The right fix is a server-side block. Deleting files from the web root is better still — but if they might reappear on the next deploy (e.g., a <code class="inline">.env</code> copied by a deploy script), a server rule is the reliable safety net.</p>
+
+    <h3>nginx</h3>
+    <pre><code># Block dotfiles and common sensitive paths
+location ~ /\. {
+    deny all;
+    return 404;
+}
+location ~* \.(sql|bak|backup|old|orig|log|gz|tar)$ {
+    deny all;
+    return 404;
+}
+location ~* /(credentials|serviceAccountKey|private|id_rsa)\.json$ {
+    deny all;
+    return 404;
+}
+# Disable directory listing
+autoindex off;</code></pre>
+
+    <h3>Apache (.htaccess)</h3>
+    <pre><code>&lt;FilesMatch "^(\.env|\.git|\.DS_Store|wp-config\.php\.bak|credentials\.json)$"&gt;
+  Order allow,deny
+  Deny from all
+&lt;/FilesMatch&gt;
+
+&lt;FilesMatch "\.(sql|bak|backup|old|orig|log|gz)$"&gt;
+  Order allow,deny
+  Deny from all
+&lt;/FilesMatch&gt;
+
+# Disable directory listing
+Options -Indexes</code></pre>
+
+    <h3>Vercel (vercel.json)</h3>
+    <pre><code>{
+  "rewrites": [
+    { "source": "/\\.env(.*)", "destination": "/404" },
+    { "source": "/\\.git(.*)", "destination": "/404" },
+    { "source": "/credentials.json", "destination": "/404" }
+  ]
+}</code></pre>
+
+    <h3>Netlify (_redirects)</h3>
+    <pre><code>/.env          /404.html  404
+/.git/*        /404.html  404
+/backup.sql    /404.html  404</code></pre>
+
+    <h2 id="build-artifacts">Build artifact checklist</h2>
+    <p>Modern JavaScript build pipelines (Vite, webpack, Next.js) introduce their own exposure risks if not configured carefully. Before launch, verify:</p>
+    <ul>
+      <li><strong>Source maps match your policy.</strong> In Vite: <code class="inline">build.sourcemap = false</code> (or <code class="inline">'hidden'</code> for error tracking without public access). In Next.js: <code class="inline">productionBrowserSourceMaps: false</code> is the default.</li>
+      <li><strong><code class="inline">.env</code> files absent from build output.</strong> Run <code class="inline">ls -la dist/</code> and <code class="inline">ls -la build/</code> — no <code class="inline">.env*</code> files should appear there.</li>
+      <li><strong>Environment variables embedded in the bundle.</strong> React/Vue/Svelte frameworks using <code class="inline">VITE_</code> or <code class="inline">REACT_APP_</code> prefixes embed those values in the JS bundle. Only public-facing values (analytics IDs, public endpoints) should use these prefixes — never private keys or secrets.</li>
+      <li><strong><code class="inline">node_modules/</code> not deployed.</strong> Confirm <code class="inline">node_modules/</code> is absent from your web root. This can happen with misconfigured rsync or FTP deployments that copy the entire project directory.</li>
+    </ul>
+
+    <div class="callout tip-callout">
+      <strong>Inspect your <code class="inline">dist/</code> directory before every deploy.</strong> Run <code class="inline">ls -la dist/</code> and look for anything that shouldn't be public: <code class="inline">.env</code> files, <code class="inline">*.sql</code> dumps, or private key files. The same files in your project root can appear in build output if your deploy script copies the entire project folder instead of only the build output.
+    </div>
+
+    <h2 id="run-exposurecheck">Running ExposureCheck on your staging site</h2>
+    <p>ExposureCheck probes your URL for over 150 high-risk paths across all ten categories above — environment files, version control, database dumps, log files, source maps, admin paths, and more. It's the fastest way to cover the full list without manually curling each path individually.</p>
+    <p>Two moments to run it:</p>
+    <ol>
+      <li><strong>Before DNS cutover</strong> — paste your staging URL (e.g., <code class="inline">https://staging.client-project.com</code>). Fix any 200-response findings before proceeding to launch.</li>
+      <li><strong>Within 24 hours of launch</strong> — run it again on the live domain to verify that production server configuration matches staging. Deploy processes sometimes differ between environments.</li>
+    </ol>
+    <p style="margin:24px 0 8px"><a class="btn primary" href="../">Scan my staging URL with ExposureCheck &rarr;</a></p>
+
+    <p>For secrets already checked into git history, also paste your source code into <a href="https://labs.copperbaytech.com/leakcheck/" target="_blank" rel="noopener noreferrer">LeakCheck</a> to find hardcoded API keys before they reach the server — ExposureCheck finds what's accessible at the URL level; LeakCheck finds what's embedded in the code itself.</p>
+
+    <h2 id="workflow">Pre-launch workflow</h2>
+    <ol class="steps">
+      <li>
+        <strong>Run ExposureCheck on the staging URL.</strong>
+        Paste the staging URL and review all findings. Any 200 response on a sensitive path is a launch blocker — fix it before proceeding.
+      </li>
+      <li>
+        <strong>Manually curl the five highest-risk paths.</strong>
+        <code class="inline">/.env</code>, <code class="inline">/.git/config</code>, <code class="inline">/wp-config.php.bak</code> (if WordPress), <code class="inline">/credentials.json</code>, and <code class="inline">/backup.sql</code>. Verify each returns 404, not 200 or 403.
+      </li>
+      <li>
+        <strong>Check directory listing on upload and media directories.</strong>
+        <code class="inline">curl https://staging.yoursite.com/uploads/</code> — look for <code class="inline">Index of /</code> in the response. If present, disable with <code class="inline">Options -Indexes</code> (Apache) or <code class="inline">autoindex off</code> (nginx).
+      </li>
+      <li>
+        <strong>Verify build output.</strong>
+        Confirm source maps match your policy, <code class="inline">.env</code> files are absent from <code class="inline">dist/</code>, and no private key files were bundled with the deploy.
+      </li>
+      <li>
+        <strong>Switch DNS and re-scan within 24 hours.</strong>
+        Run ExposureCheck on the live domain to confirm the production server config matches staging. Production environments sometimes have different web server configurations.
+      </li>
+      <li>
+        <strong>Check HTTP security headers.</strong>
+        Exposed files and weak security headers are often found together. After confirming no exposures, run <a href="https://labs.copperbaytech.com/hardencheck/" target="_blank" rel="noopener noreferrer">HardenCheck</a> on the live URL to verify Content-Security-Policy, HSTS, and X-Frame-Options are correctly set.
+      </li>
+    </ol>
+
+    <h2 id="faq">Frequently asked questions</h2>
+    <div class="faq-section">
+      <details open>
+        <summary>Can ExposureCheck scan a staging URL that's password-protected?</summary>
+        <p>No. ExposureCheck makes real HTTP requests to your URL. If the staging environment is behind HTTP Basic Auth, a VPN, or IP allowlisting, the scanner cannot access it. Run the scan after temporarily removing the password restriction, or run it on the live domain after DNS propagation. The two-stage workflow (staging scan + post-launch scan) is the most reliable approach.</p>
+      </details>
+      <details>
+        <summary>What's the security difference between a 403 and a 404 for /.env?</summary>
+        <p>A 403 (Forbidden) means the file or directory exists and the server is blocking access — the resource is present. A 404 (Not Found) means the server returns no content, either because the file doesn't exist or a rewrite rule hides it. From a security standpoint, 404 is preferable: it doesn't confirm to a scanner that the resource exists. A 403 on <code class="inline">/.env</code> is better than a 200, but the best configuration is a rewrite rule returning 404 for all sensitive paths.</p>
+      </details>
+      <details>
+        <summary>Should source maps be accessible in production?</summary>
+        <p>It depends on your application. Source maps make production debugging much easier and are generally acceptable for non-sensitive applications. If your frontend code contains proprietary algorithms, business logic with competitive value, or internal comments that reveal system architecture, serving maps publicly exposes that. The safest approach for sensitive apps is to disable source map generation for production builds, or upload maps only to your error-tracking service rather than your web root.</p>
+      </details>
+      <details>
+        <summary>My server returns 200 for /.env but the file is empty. Is that a problem?</summary>
+        <p>Yes, for two reasons. First, an empty <code class="inline">.env</code> on staging may not be empty on production — the path being accessible is the server configuration gap, regardless of current content. When you deploy to production, a populated <code class="inline">.env</code> may land in the same accessible web root position. Second, automated scanners that find a 200 response on <code class="inline">/.env</code> log the URL and retry periodically. Fix the server configuration to return 404 for that path.</p>
+      </details>
+      <details>
+        <summary>What if I'm on shared hosting and can't configure server-level rules?</summary>
+        <p>On Apache-based shared hosting (most cPanel environments), you can add rules via <code class="inline">.htaccess</code> in your web root without server-level access. Create or edit <code class="inline">public_html/.htaccess</code> and add the deny blocks shown in the server configuration section above. On Netlify or Vercel, use <code class="inline">_redirects</code> or <code class="inline">vercel.json</code> rewrite rules to return 404 for sensitive paths before your first deploy.</p>
+      </details>
+      <details>
+        <summary>How often should I run ExposureCheck after the site is live?</summary>
+        <p>Run it immediately after launch, then again after any significant server configuration change, CMS or framework update, or deployment that alters your document root structure. A monthly scan is a reasonable baseline for sites that change infrequently. For actively developed sites, add ExposureCheck to your deployment checklist — it takes 30 seconds and catches misconfigured deploys before users or scanners do.</p>
+      </details>
+    </div>
+
+    <h2 style="margin-top:48px">Also in the Copper Bay Labs ship-safety suite</h2>
+    <p>Pre-launch file exposure is one dimension of a secure launch. These free tools cover the others:</p>
+    <div class="suite">
+      <a href="https://labs.copperbaytech.com/leakcheck/" target="_blank" rel="noopener noreferrer">
+        <span class="s-tag">Secret scanning</span>
+        <span class="s-name">LeakCheck</span>
+        <p>Paste code or a config file and see exposed API keys and secrets flagged before they reach the repo — finds what's in the code, not just what's accessible at the URL level.</p>
+      </a>
+      <a href="https://labs.copperbaytech.com/hardencheck/" target="_blank" rel="noopener noreferrer">
+        <span class="s-tag">Security headers</span>
+        <span class="s-name">HardenCheck</span>
+        <p>Scan your live site's HTTP security headers — CSP, HSTS, X-Frame-Options — and get a grade with remediation steps for each gap.</p>
+      </a>
+      <a href="https://labs.copperbaytech.com/depcheck/" target="_blank" rel="noopener noreferrer">
+        <span class="s-tag">Dependency risk</span>
+        <span class="s-name">DepCheck</span>
+        <p>Paste your <code class="inline">package.json</code> and see vulnerable, abandoned, typosquatted, and risky-license packages before they go into production.</p>
+      </a>
+      <a href="https://labs.copperbaytech.com/shipsafe/" target="_blank" rel="noopener noreferrer">
+        <span class="s-tag">ADA &amp; privacy</span>
+        <span class="s-name">ShipSafe</span>
+        <p>Check your site for WCAG accessibility failures and privacy-risk patterns before they become legal liabilities.</p>
+      </a>
+    </div>
+  </div>
+</article>
+</main>
+
+<footer class="footer" role="contentinfo">
+  <div class="wrap foot">
+    <div>
+      <a class="brand small" href="../" aria-label="ExposureCheck — homepage">
+        <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M32 4 54 12 V30 C54 44 45 54 32 60 C19 54 10 44 10 30 V12 Z" fill="#cbd2da"/>
+          <path d="M32 10 48 16 V30 C48 41 41.5 49 32 54 C22.5 49 16 41 16 30 V16 Z" fill="#14181f"/>
+          <circle cx="29" cy="30" r="8.5" fill="none" stroke="#bf6b3c" stroke-width="3"/>
+          <line x1="35" y1="36" x2="42" y2="43" stroke="#bf6b3c" stroke-width="3.5" stroke-linecap="round"/>
+        </svg>
+        <span class="wordmark">ExposureCheck</span>
+      </a>
+      <p class="fine">An exposed-file and secret scanner — not a full server security audit or penetration test.</p>
+    </div>
+    <nav class="foot-nav" aria-label="Footer navigation">
+      <a href="../about.html">How it works</a>
+      <a href="fix-exposed-env-file.html">Fix .env exposure</a>
+      <a href="how-to-check-website-exposed-files.html">Check for exposed files</a>
+      <a href="prevent-exposed-files-website.html">Prevention guide</a>
+      <a href="pre-launch-exposed-files-audit.html">Pre-launch audit</a>
+      <a href="https://labs.copperbaytech.com/leakcheck/" target="_blank" rel="noopener noreferrer">LeakCheck</a>
+      <a href="https://labs.copperbaytech.com/hardencheck/" target="_blank" rel="noopener noreferrer">HardenCheck</a>
+      <a href="https://labs.copperbaytech.com/depcheck/" target="_blank" rel="noopener noreferrer">DepCheck</a>
+      <a href="https://labs.copperbaytech.com/shipsafe/" target="_blank" rel="noopener noreferrer">ShipSafe</a>
+      <a href="https://copperbaytech.com" target="_blank" rel="noopener noreferrer">Secure my project &rarr;</a>
+    </nav>
+  </div>
+  <div class="wrap">
+    <p class="madeby">A <a href="https://copperbaytech.com" target="_blank" rel="noopener noreferrer">Copper Bay Labs</a> product.
+    <span class="disclaimer">This is a free scanning tool, not professional security advice or a penetration test.</span></p>
+  </div>
+</footer>
+
+</body>
+</html>
