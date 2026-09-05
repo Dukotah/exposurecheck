@@ -96,6 +96,7 @@
       <a href="prevent-exposed-files-website.html">Prevention</a>
       <a href="fix-exposed-env-file.html">Fix guides</a>
       <a href="pre-launch-exposed-files-audit.html">Pre-launch</a>
+      <a href="git-folder-exposed-remediation.html">After .git exposure</a>
     </nav>
   </div>
 </header>
@@ -212,10 +213,10 @@
     <h3>A complete shell audit loop</h3>
     <p>This one-liner probes the most common high-risk paths and reports each HTTP status in a single pass:</p>
     <pre><code>SITE="https://your-site.com"
-for path in /.env /.env.local /.env.production /.env.backup \
-            /.git/config /.git/HEAD \
-            /config.json /config.yml /config.php \
-            /wp-config.php /phpinfo.php \
+for path in /.env /.env.local /.env.production /.env.backup \\
+            /.git/config /.git/HEAD \\
+            /config.json /config.yml /config.php \\
+            /wp-config.php /phpinfo.php \\
             /backup.sql /dump.sql /db.sql /database.sql; do
   code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$SITE$path")
   echo "$code  $SITE$path"
@@ -232,7 +233,7 @@ curl -s -o /dev/null -w "%{http_code}" https://your-site.com/.git/packed-refs
 
 # Fetch the HEAD file to confirm the active branch
 curl -s https://your-site.com/.git/HEAD</code></pre>
-    <p>A HEAD response of <code class="inline">ref: refs/heads/main</code> confirms the repo is accessible. At this point, refer to the <a href="fix-exposed-env-file.html">fix guide</a> — the server config blocks in Step 3 cover how to deny <code class="inline">/.git/</code> access on Nginx, Apache, Vercel, and Netlify.</p>
+    <p>A HEAD response of <code class="inline">ref: refs/heads/main</code> confirms the repo is accessible. At this point, refer to the <a href="git-folder-exposed-remediation.html">remediation guide</a> — the server config blocks cover how to deny <code class="inline">/.git/</code> access on Nginx, Apache, Vercel, and Netlify.</p>
 
     <h2 id="devtools">Finding source maps and bundled secrets in browser DevTools</h2>
     <p>Not all exposures are path-accessible files. JavaScript bundles built with source maps enabled — the default in most Vite, webpack, and Create React App configurations — leak your original source code via the browser's DevTools debugger.</p>
@@ -278,7 +279,7 @@ curl -s "$(curl -s https://your-site.com/ | grep -oE 'src="[^"]+\.js"' | head -1
     <p>Not every 200 response is equally urgent. Use this to triage:</p>
     <ul>
       <li><strong>Exposed <code class="inline">.env</code> or credential file:</strong> Treat as an active incident. Rotate credentials immediately — before removing the file, before anything else. Follow the full <a href="fix-exposed-env-file.html">remediation guide</a>.</li>
-      <li><strong>Accessible <code class="inline">.git/config</code>:</strong> Block the path immediately at your server level and assess whether the repository has already been reconstructed. If the repo is private and contains secrets in its history, rotate any credentials that appeared in any commit.</li>
+      <li><strong>Accessible <code class="inline">.git/config</code>:</strong> Block the path immediately at your server level and assess whether the repository has already been reconstructed. If the repo is private and contains secrets in its history, rotate any credentials that appeared in any commit. Follow the <a href="git-folder-exposed-remediation.html">.git exposure response guide</a>.</li>
       <li><strong>Source maps enabled:</strong> Not an incident requiring immediate credential rotation, but a code-confidentiality issue. Rebuild with source maps disabled and redeploy. Priority depends on how sensitive your source code is.</li>
       <li><strong>Hardcoded key in a bundle:</strong> Rotate the exposed credential and move the value to a proper environment variable injected at build or runtime.</li>
       <li><strong>Accessible database backup:</strong> Treat as a critical data breach. The file must be removed immediately, the platform security team notified, and affected users informed per your GDPR/CCPA obligations.</li>
@@ -369,6 +370,7 @@ curl -s "$(curl -s https://your-site.com/ | grep -oE 'src="[^"]+\.js"' | head -1
       <a href="prevent-exposed-files-website.html">Prevention guide</a>
       <a href="fix-exposed-env-file.html">Fix exposed files</a>
       <a href="pre-launch-exposed-files-audit.html">Pre-launch audit</a>
+      <a href="git-folder-exposed-remediation.html">.git exposure response</a>
       <a href="https://labs.copperbaytech.com/leakcheck/" target="_blank" rel="noopener noreferrer">LeakCheck</a>
       <a href="https://labs.copperbaytech.com/shipsafe/" target="_blank" rel="noopener noreferrer">ShipSafe</a>
       <a href="https://copperbaytech.com" target="_blank" rel="noopener noreferrer">Secure my project &rarr;</a>
