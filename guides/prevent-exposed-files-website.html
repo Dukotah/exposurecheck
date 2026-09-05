@@ -48,7 +48,7 @@
   .platform-card pre{margin:10px 0 0;font-size:12.5px}
   .checklist{margin:18px 0;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:8px}
   .checklist li{display:flex;gap:12px;align-items:flex-start;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;font-size:15px}
-  .checklist li::before{content:"☐";font-size:18px;flex-shrink:0;color:var(--muted);margin-top:-1px}
+  .checklist li::before{content:"\2610";font-size:18px;flex-shrink:0;color:var(--muted);margin-top:-1px}
   .suite{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:18px 0 6px}
   .suite a{display:block;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow);transition:box-shadow .15s,transform .15s,border-color .15s}
   .suite a:hover{text-decoration:none;box-shadow:var(--shadow-lift);transform:translateY(-2px);border-color:var(--line-2)}
@@ -84,6 +84,7 @@
       <a href="how-to-check-website-exposed-files.html">Audit guide</a>
       <a href="fix-exposed-env-file.html">Fix guides</a>
       <a href="pre-launch-exposed-files-audit.html">Pre-launch</a>
+      <a href="git-folder-exposed-remediation.html">After .git exposure</a>
     </nav>
   </div>
 </header>
@@ -200,14 +201,14 @@ location ~ /\. {
       </div>
       <div class="platform-card">
         <h3>Apache / .htaccess</h3>
-        <pre><code>&lt;FilesMatch "^\.">
+        <pre><code>&lt;FilesMatch "^\."&gt;
   Require all denied
-&lt;/FilesMatch>
+&lt;/FilesMatch&gt;
 
 # Also block common backup extensions
-&lt;FilesMatch "\.(sql|bak|old|backup)$">
+&lt;FilesMatch "\.(sql|bak|old|backup)$"&gt;
   Require all denied
-&lt;/FilesMatch></code></pre>
+&lt;/FilesMatch&gt;</code></pre>
       </div>
       <div class="platform-card">
         <h3>Netlify (_redirects)</h3>
@@ -396,6 +397,7 @@ module.exports = {
       <a href="how-to-check-website-exposed-files.html">Audit guide</a>
       <a href="fix-exposed-env-file.html">Fix exposed files</a>
       <a href="pre-launch-exposed-files-audit.html">Pre-launch audit</a>
+      <a href="git-folder-exposed-remediation.html">.git exposure response</a>
       <a href="https://labs.copperbaytech.com/leakcheck/" target="_blank" rel="noopener noreferrer">LeakCheck</a>
       <a href="https://labs.copperbaytech.com/shipsafe/" target="_blank" rel="noopener noreferrer">ShipSafe</a>
       <a href="https://copperbaytech.com" target="_blank" rel="noopener noreferrer">Secure my project &rarr;</a>
