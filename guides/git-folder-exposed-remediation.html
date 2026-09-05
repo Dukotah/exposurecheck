@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What to Do if Your .git Folder Was Publicly Accessible — Damage Assessment and Remediation</title>
+<meta name="description" content="Step-by-step incident response for a publicly accessible .git directory: block access, check logs for scraping, audit git history for exposed secrets, rotate credentials, and assess source code disclosure risk.">
+<link rel="canonical" href="https://labs.copperbaytech.com/exposurecheck/guides/git-folder-exposed-remediation.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="ExposureCheck">
+<meta property="og:title" content="What to Do if Your .git Folder Was Publicly Accessible — Damage Assessment and Remediation">
+<meta property="og:description" content="Block the path, check logs, rotate every secret in your history, and assess source code disclosure. Step-by-step incident response for an exposed .git directory.">
+<meta property="og:url" content="https://labs.copperbaytech.com/exposurecheck/guides/git-folder-exposed-remediation.html">
+<meta property="og:image" content="https://labs.copperbaytech.com/exposurecheck/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#faf8f4">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"What to Do if Your .git Folder Was Publicly Accessible — Damage Assessment and Remediation","description":"Step-by-step incident response guide for a publicly accessible .git directory: block access immediately, confirm which paths were reachable, review access logs for git-dumper activity, audit git history for exposed secrets, rotate all exposed credentials, and assess source code disclosure risk.","author":{"@type":"Organization","name":"Copper Bay Labs","url":"https://copperbaytech.com"},"publisher":{"@type":"Organization","name":"Copper Bay Labs","url":"https://copperbaytech.com"},"datePublished":"2026-09-05","dateModified":"2026-09-05","mainEntityOfPage":"https://labs.copperbaytech.com/exposurecheck/guides/git-folder-exposed-remediation.html","mainEntity":{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Can someone really reconstruct my full repository from a publicly accessible /.git/ folder?","acceptedAnswer":{"@type":"Answer","text":"Yes. Tools like git-dumper and GitTools reconstruct the complete source history by downloading the object store files systematically. Git's object addressing is deterministic, so a tool can calculate which files to request from /.git/packed-refs without needing directory listing enabled. If /.git/config, /.git/HEAD, and /.git/packed-refs were all accessible, assume full repository reconstruction is possible."}},{"@type":"Question","name":"What does a git-dumper attack look like in my web server access logs?","acceptedAnswer":{"@type":"Answer","text":"A distinctive burst of GET requests to /.git/ sub-paths in rapid succession from the same IP: /.git/config, /.git/HEAD, /.git/packed-refs, /.git/objects/info/packs, then individual object files at /.git/objects/ab/cdef1234.... Dozens to hundreds of requests within a 30-60 second window. Run: grep '/.git/' /var/log/nginx/access.log | sort -k4"}},{"@type":"Question","name":"My /.git/config returns 200 but /.git/objects/ returns 403 — am I safe?","acceptedAnswer":{"@type":"Answer","text":"Not necessarily. A 403 on the objects/ directory listing doesn't prevent object download if an attacker can enumerate hashes. /.git/packed-refs lists exact SHAs for all packed objects, and tools like git-dumper request each object file directly using those SHAs — no directory listing needed. If /.git/packed-refs was accessible, treat the full repository as potentially compromised."}},{"@type":"Question","name":"The .git folder was publicly accessible for several days. What should I assume?","acceptedAnswer":{"@type":"Answer","text":"Assume the repository was fully reconstructed. Automated scanners probe /.git/config continuously across the entire IPv4 address space. A folder accessible for more than a few hours has a high probability of being found. Treat this as a confirmed disclosure: rotate every credential across your entire git history and assess source code disclosure."}},{"@type":"Question","name":"Do I need to notify my users or regulators about a .git exposure?","acceptedAnswer":{"@type":"Answer","text":"It depends on what was in your repository history. If any commit ever contained personal data about users (names, emails, addresses, payment references, health data), the exposure is a personal data breach under GDPR (Article 33) requiring supervisory authority notification within 72 hours. US state breach laws vary. If only credentials and source code were exposed, legal requirements depend on your jurisdiction and contracts. Consult legal counsel with the specifics of what your git history contained."}},{"@type":"Question","name":"How do I block .git access on Vercel and Netlify?","acceptedAnswer":{"@type":"Answer","text":"Vercel: add to vercel.json: {\"redirects\":[{\"source\":\"/.git/:path*\",\"destination\":\"/404\",\"statusCode\":404}]}. Netlify: add to _redirects: /.git/* /404.html 404. Note that these platforms don't normally serve .git at all — exposure typically happens on VPS deployments where the project root was cloned into the webroot."}},{"@type":"Question","name":"What is the difference between .git folder exposure and .env file exposure?","acceptedAnswer":{"@type":"Answer","text":"An exposed .env reveals credentials currently active in your environment. An exposed .git folder can reveal every credential that ever appeared in any commit — including keys rotated months ago. It also leaks your full source code history, including deleted files, comments, and internal architecture details. The remediation scope is broader: you must audit the entire git history, not just the current state of your code."}}]}}
+</script>
+<link rel="stylesheet" href="../styles.css?v=1">
+<style>
+  .doc .lede{font-size:clamp(17px,2.3vw,20px);color:var(--muted)}
+  .doc h2{scroll-margin-top:80px}
+  .doc h3{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:19px;margin:22px 0 6px;letter-spacing:-.01em}
+  .toc{display:flex;flex-wrap:wrap;gap:10px;margin:22px 0 6px;padding:0;list-style:none}
+  .toc a{display:inline-block;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:7px 14px;font-size:14px;font-weight:600;color:var(--muted)}
+  .toc a:hover{border-color:var(--bay);color:var(--ink);text-decoration:none}
+  .callout.warn-callout{background:var(--fail-bg);border-left-color:var(--fail);color:#5e2019}
+  .callout.tip-callout{background:var(--pass-bg);border-left-color:var(--pass);color:#1b4d30}
+  .callout.note-callout{background:var(--warn-bg);border-left-color:var(--warn);color:#4d3208}
+  .doc code.inline{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.9em;background:var(--line-2);padding:2px 6px;border-radius:5px}
+  pre{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;overflow-x:auto;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.6;margin:12px 0}
+  pre code{background:none;padding:0;font-size:inherit}
+  .scope-table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px}
+  .scope-table th{text-align:left;padding:10px 12px;background:var(--surface);border-bottom:2px solid var(--line);font-weight:600;font-family:"Hanken Grotesk",sans-serif}
+  .scope-table td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  .scope-table tr:last-child td{border-bottom:none}
+  .scope-table code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:var(--line-2);padding:2px 5px;border-radius:4px}
+  .sev-critical{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:6px;background:var(--fail-bg);color:var(--fail)}
+  .sev-high{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:6px;background:var(--high-bg,#fff1e6);color:var(--high,#c04c00)}
+  .sev-med{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:6px;background:var(--warn-bg);color:var(--warn)}
+  .sev-low{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:6px;background:var(--line-2);color:var(--muted)}
+  .platform-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin:18px 0}
+  .platform-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+  .platform-card h3{margin:0 0 8px;font-size:16px;font-family:"Fraunces",Georgia,serif;font-weight:600}
+  .platform-card p{font-size:14px;color:var(--muted);margin:8px 0 0}
+  .platform-card pre{margin:10px 0 0;font-size:12.5px}
+  .suite{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:18px 0 6px}
+  .suite a{display:block;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow);transition:box-shadow .15s,transform .15s,border-color .15s}
+  .suite a:hover{text-decoration:none;box-shadow:var(--shadow-lift);transform:translateY(-2px);border-color:var(--line-2)}
+  .suite .s-name{font-family:"Fraunces",serif;font-weight:600;font-size:17px;color:var(--ink);display:block;margin:0 0 4px}
+  .suite p{color:var(--muted);font-size:14px;margin:0}
+  .suite .s-tag{display:inline-block;margin-bottom:8px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--bay);background:var(--bay-tint,#e8f4f6);border:1px solid #cfe1e3;border-radius:6px;padding:2px 8px}
+  .faq-section{margin:18px 0}
+  .faq-section details{border-bottom:1px solid var(--line);padding:14px 0}
+  .faq-section details:first-child{border-top:1px solid var(--line)}
+  .faq-section summary{font-weight:600;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .faq-section summary::-webkit-details-marker{display:none}
+  .faq-section summary::after{content:"+";font-size:20px;color:var(--muted);flex-shrink:0}
+  .faq-section details[open] summary::after{content:"\2212"}
+  .faq-section details p,.faq-section details ul,.faq-section details pre{margin:12px 0 4px;color:var(--muted)}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+
+<header class="masthead" role="banner">
+  <div class="wrap hdr-bar">
+    <a class="brand" href="../" aria-label="ExposureCheck — go to homepage">
+      <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M32 4 54 12v18c0 14-9 24-22 30C19 54 10 44 10 30V12L32 4Z" fill="none" stroke="#13525a" stroke-width="4" stroke-linejoin="round"/>
+        <path d="M22 30v-5a10 10 0 0 1 20 0v5" fill="none" stroke="#bf6b3c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="19" y="30" width="26" height="18" rx="3" fill="none" stroke="#bf6b3c" stroke-width="4"/>
+      </svg>
+      <span class="wordmark">ExposureCheck</span>
+    </a>
+    <nav class="nav" aria-label="Primary navigation">
+      <a href="../about.html">How it works</a>
+      <a href="../">Scan your site</a>
+      <a href="how-to-check-website-exposed-files.html">Audit guide</a>
+      <a href="prevent-exposed-files-website.html">Prevention</a>
+      <a href="pre-launch-exposed-files-audit.html">Pre-launch</a>
+      <a href="git-folder-exposed-remediation.html" aria-current="page">After .git exposure</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+<article class="doc">
+  <div class="wrap narrow">
+    <p class="eyebrow" style="text-align:left">Incident response guide</p>
+    <h1>What to do if your <code class="inline">.git</code> folder was publicly accessible</h1>
+    <p class="lede">A publicly reachable <code class="inline">/.git/</code> directory is one of the most serious web-server misconfigurations possible. Unlike an exposed <code class="inline">.env</code> file — which leaks your current credentials — a public <code class="inline">.git</code> folder can expose every secret that ever appeared in your entire commit history, plus your full source code. This guide walks through damage assessment and complete remediation, in the right order.</p>
+
+    <div class="callout warn-callout">
+      <strong>Block the path first, then assess.</strong> Your first action is to deny all requests to <code class="inline">/.git/</code> at the server level — not to assess damage, not to rotate secrets. Block it now, then work through the steps below to understand what was exposed.
+    </div>
+
+    <ul class="toc" aria-label="On this page">
+      <li><a href="#what-it-reveals">What it exposes</a></li>
+      <li><a href="#step1">Step 1: Block access</a></li>
+      <li><a href="#step2">Step 2: Confirm scope</a></li>
+      <li><a href="#step3">Step 3: Check access logs</a></li>
+      <li><a href="#step4">Step 4: Audit git history</a></li>
+      <li><a href="#step5">Step 5: Rotate credentials</a></li>
+      <li><a href="#step6">Step 6: Source code disclosure</a></li>
+      <li><a href="#step7">Step 7: Notifications</a></li>
+      <li><a href="#prevention">Prevention</a></li>
+      <li><a href="#faq">FAQ</a></li>
+    </ul>
+
+    <h2 id="what-it-reveals">What a public <code class="inline">.git</code> folder actually exposes</h2>
+    <p>The <code class="inline">.git</code> directory is git's internal database. Every file you have ever committed is stored inside it as a compressed binary object. When that directory is served publicly, an attacker doesn't just see your current code — they can reconstruct your full commit history using automated tools like <a href="https://github.com/arthaud/git-dumper" target="_blank" rel="noopener noreferrer">git-dumper</a> and <a href="https://github.com/internetwache/GitTools" target="_blank" rel="noopener noreferrer">GitTools</a>.</p>
+
+    <table class="scope-table">
+      <thead>
+        <tr><th>Accessible path</th><th>What it contains</th><th>Risk</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>/.git/config</code></td>
+          <td>Remote URL (may embed a GitHub/GitLab token in HTTPS clone URLs), branch tracking, author configuration</td>
+          <td><span class="sev-critical">Critical</span></td>
+        </tr>
+        <tr>
+          <td><code>/.git/packed-refs</code></td>
+          <td>SHA hashes for every branch and tag — the index tools use to enumerate the full object store</td>
+          <td><span class="sev-high">High</span></td>
+        </tr>
+        <tr>
+          <td><code>/.git/objects/</code></td>
+          <td>The complete object store: every file from every commit as addressable binary blobs. Full source history reconstruction.</td>
+          <td><span class="sev-critical">Critical</span></td>
+        </tr>
+        <tr>
+          <td><code>/.git/logs/HEAD</code></td>
+          <td>Commit log with author names, email addresses, and timestamps for every commit</td>
+          <td><span class="sev-med">Medium</span></td>
+        </tr>
+        <tr>
+          <td><code>/.git/HEAD</code></td>
+          <td>Current branch name (e.g., <code>ref: refs/heads/main</code>)</td>
+          <td><span class="sev-low">Low</span></td>
+        </tr>
+        <tr>
+          <td><code>/.git/COMMIT_EDITMSG</code></td>
+          <td>Most recent commit message — may reveal feature names or internal project details</td>
+          <td><span class="sev-low">Low</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>These tools don't need directory listing enabled. Once they have <code class="inline">/.git/packed-refs</code>, they calculate the exact SHA paths of every object and download them individually — a complete reconstruction from nothing but the exposed file tree.</p>
+
+    <h2 id="step1">Step 1: Block access immediately</h2>
+    <p>Deny all requests to <code class="inline">/.git/</code> at the server level before anything else.</p>
+
+    <div class="platform-grid">
+      <div class="platform-card">
+        <h3>Nginx</h3>
+        <pre><code>location ~ /\.git {
+    deny all;
+    return 404;
+}
+# Or block all hidden paths at once:
+location ~ /\. {
+    deny all;
+    return 404;
+}</code></pre>
+        <p>Add to your <code class="inline">server {}</code> block, run <code class="inline">nginx -t</code>, then <code class="inline">nginx -s reload</code>.</p>
+      </div>
+      <div class="platform-card">
+        <h3>Apache (.htaccess)</h3>
+        <pre><code>&lt;DirectoryMatch "^/.*/\.git"&gt;
+  Order allow,deny
+  Deny from all
+&lt;/DirectoryMatch&gt;
+
+&lt;FilesMatch "^\.git"&gt;
+  Order allow,deny
+  Deny from all
+&lt;/FilesMatch&gt;</code></pre>
+      </div>
+      <div class="platform-card">
+        <h3>Vercel (vercel.json)</h3>
+        <pre><code>{
+  "redirects": [{
+    "source": "/.git/:path*",
+    "destination": "/404",
+    "statusCode": 404
+  }]
+}</code></pre>
+      </div>
+      <div class="platform-card">
+        <h3>Netlify (_redirects)</h3>
+        <pre><code>/.git/* /404.html 404</code></pre>
+        <p>Or add a <code class="inline">[[redirects]]</code> block in <code class="inline">netlify.toml</code>.</p>
+      </div>
+      <div class="platform-card">
+        <h3>Caddy (Caddyfile)</h3>
+        <pre><code>respond /.git/* 404
+# Or for all hidden paths:
+respond /\.* 404</code></pre>
+      </div>
+      <div class="platform-card">
+        <h3>Cloudflare (Transform Rules)</h3>
+        <p>Create a Transform Rule or Page Rule matching <code class="inline">your-site.com/.git*</code> with action "Block" or a custom 404 response. Available on all plan tiers.</p>
+      </div>
+    </div>
+
+    <div class="callout tip-callout">
+      <strong>Verify the block is active before continuing.</strong>
+      <pre style="margin:8px 0 0"><code>curl -s -o /dev/null -w "%{http_code}" https://your-site.com/.git/config</code></pre>
+      You should get 404. If you still get 200, the config has not taken effect — check for a CDN cache that needs purging.
+    </div>
+
+    <h2 id="step2">Step 2: Confirm which paths were accessible</h2>
+    <p>The scope of the exposure depends on which sub-paths were reachable. Run this audit to establish what was served:</p>
+
+    <pre><code>SITE="https://your-site.com"
+for path in /.git/config /.git/HEAD /.git/packed-refs \
+            /.git/info/refs /.git/objects/info/packs \
+            /.git/logs/HEAD /.git/COMMIT_EDITMSG; do
+  code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$SITE$path")
+  echo "$code  $path"
+done</code></pre>
+
+    <ul>
+      <li><strong>200 on <code class="inline">/.git/config</code> only:</strong> Remote URL and config exposed. Serious, but full reconstruction requires <code class="inline">packed-refs</code> — less certain.</li>
+      <li><strong>200 on <code class="inline">/.git/packed-refs</code> or <code class="inline">/.git/objects/info/packs</code>:</strong> Full repository reconstruction was possible. Assume it happened if accessible for more than a few minutes.</li>
+      <li><strong>All 404 (after block):</strong> Block is active. Now review access logs to determine what was fetched before the block was added.</li>
+    </ul>
+
+    <h2 id="step3">Step 3: Check access logs for signs of scraping</h2>
+    <p>A git-dumper or GitTools run leaves a distinctive pattern in your logs. On a VPS:</p>
+
+    <pre><code># Nginx
+grep '/.git/' /var/log/nginx/access.log | sort
+
+# Apache
+grep '\.git' /var/log/apache2/access.log | sort
+
+# Filter by date range
+grep '/.git/' /var/log/nginx/access.log | awk '$4 >= "[01/Sep/2026"' | sort</code></pre>
+
+    <p><strong>What a scrape looks like:</strong> A burst of GET requests to <code class="inline">/.git/</code> sub-paths in rapid succession from the same IP — typically dozens to hundreds of requests within 30–60 seconds. Sequence: <code class="inline">/.git/config</code>, <code class="inline">/.git/HEAD</code>, <code class="inline">/.git/packed-refs</code>, <code class="inline">/.git/objects/info/packs</code>, then individual object paths like <code class="inline">/.git/objects/ab/cd1234...</code>. If you see this, the repository was almost certainly fully reconstructed.</p>
+
+    <div class="callout note-callout">
+      <strong>Absence of log evidence doesn't mean no access.</strong> CDN-terminated traffic may not reach origin logs; log rotation may have removed older entries; some platforms don't expose raw access logs at all. If your logs are incomplete or unavailable, assume the worst case and proceed with full credential rotation.
+    </div>
+
+    <h2 id="step4">Step 4: Audit your git history for secrets</h2>
+    <p>A public <code class="inline">.git</code> folder exposes every file from every commit — including files deleted from the working tree years ago. Audit the full history, not just the current state:</p>
+
+    <h3>Search all commits for credential patterns</h3>
+    <pre><code># Grep all commit diffs for common secret patterns
+git log --all -p | grep -iE \
+  '(API_KEY|SECRET|PASSWORD|TOKEN|sk_live|sk_test|AKIA|ghp_|AIza|pk_live|-----BEGIN)' \
+  | head -100
+
+# Find .env files ever committed
+git log --all --full-history -- "**/.env" "*.env*"
+
+# Show the contents of a deleted .env from a specific commit
+git show &lt;commit-sha&gt;:.env</code></pre>
+
+    <h3>List every file ever committed</h3>
+    <pre><code># All files ever committed across all branches
+git log --all --name-only --format='' | sort -u | grep -v '^$'
+
+# Commits that touched credential file types
+git log --all --diff-filter=A --name-only --format='' \
+  | grep -iE '\.(env|pem|key|p12|json)$'</code></pre>
+
+    <h3>Use gitleaks for thorough coverage</h3>
+    <p><a href="https://github.com/gitleaks/gitleaks" target="_blank" rel="noopener noreferrer">gitleaks</a> scans the entire git history for 100+ known secret patterns:</p>
+    <pre><code># macOS
+brew install gitleaks
+
+# Scan all commits, all branches
+gitleaks detect --source . --log-opts="--all"</code></pre>
+
+    <h2 id="step5">Step 5: Rotate every credential that ever appeared in history</h2>
+    <p>Any secret that appeared in any commit must be treated as compromised. Rotate everything — including keys that were removed from the file years ago:</p>
+    <ul>
+      <li><strong>AWS access keys</strong> — IAM console → Users → Security credentials → Delete and replace. If the key had broad permissions, check CloudTrail for unexpected activity during the exposure window.</li>
+      <li><strong>GitHub personal access tokens</strong> — Settings → Developer settings → Personal access tokens → Revoke. Check for unexpected OAuth apps, new deploy keys, or repository access changes.</li>
+      <li><strong>Stripe, OpenAI, Anthropic, Twilio, Sendgrid</strong> — Each provider's dashboard → API keys → Delete old, generate replacement.</li>
+      <li><strong>Database connection strings with passwords</strong> — Reset the database user's password. Update the connection string in every consumer: platform env variables, CI/CD secrets, other services.</li>
+      <li><strong>JWT signing secrets and session secrets</strong> — Rotate the value in your environment. Note this invalidates all current sessions — plan accordingly.</li>
+      <li><strong>Private keys (SSH, PEM, SSL certificates)</strong> — Generate new key pairs. Revoke the old public key from every service where it was registered.</li>
+      <li><strong>Embedded HTTPS clone tokens</strong> — If <code class="inline">/.git/config</code> contained a remote URL of the form <code class="inline">https://token@github.com/...</code>, revoke that token immediately.</li>
+    </ul>
+
+    <div class="callout tip-callout">
+      <strong>Don't forget to deploy the rotated credentials.</strong> After revoking in each provider's dashboard, update them in every consumer: CI/CD pipeline secrets, hosting platform environment variables, partner integrations. A rotated key you forgot to redeploy is an outage.
+    </div>
+
+    <h2 id="step6">Step 6: Assess source code disclosure</h2>
+    <p>Beyond credentials, a public <code class="inline">.git</code> folder exposes your source code — every file from every commit. The implications depend on what your code contains:</p>
+    <ul>
+      <li><strong>Proprietary business logic:</strong> Algorithms or workflows core to your business value are now effectively public. Consider how this affects your competitive position and threat model.</li>
+      <li><strong>Internal architecture details:</strong> Hardcoded internal hostnames, admin URL paths, feature-flag naming, service names — these give an attacker a detailed map of your infrastructure even if no credentials were exposed.</li>
+      <li><strong>Comments revealing vulnerabilities:</strong> Developer notes like <em>"TODO: fix SQL injection here"</em> or <em>"this check is bypassed for internal IPs"</em> become a roadmap for attack.</li>
+      <li><strong>User data in fixtures or test files:</strong> Development seeds, test fixtures, or database dumps committed for convenience can contain real user records. If found, this is a personal data breach — proceed to Step 7.</li>
+    </ul>
+
+    <h2 id="step7">Step 7: Breach notifications and disclosure</h2>
+    <p>Whether you have a legal notification obligation depends on what was in your repository history:</p>
+    <ul>
+      <li><strong>If git history contained user PII</strong> (names, emails, IP addresses, health data, payment references, session tokens): This is a personal data breach under GDPR Article 33, requiring supervisory authority notification within 72 hours if the breach poses risk to individuals. Individual notification is required when the risk is high. US state breach laws (CCPA, SHIELD, etc.) have their own thresholds. Consult legal counsel immediately.</li>
+      <li><strong>If credentials to third-party services were exposed:</strong> Check your contracts — payment processors and financial services often require breach notification. Revoke the credentials and notify the provider per your agreement.</li>
+      <li><strong>Document the timeline regardless:</strong> Record when the folder became accessible, when you discovered it, when you blocked it, and what remediation steps you took. This is essential for both internal incident response and any regulatory inquiry.</li>
+    </ul>
+
+    <p style="margin:24px 0 8px"><a class="btn primary" href="../">Re-scan your site with ExposureCheck to verify the fix &rarr;</a></p>
+    <p>ExposureCheck probes <code class="inline">/.git/config</code>, <code class="inline">/.git/HEAD</code>, and related paths, confirming they now return 404. It also scans your served bundle for any API keys or secrets that remain in currently deployed code.</p>
+
+    <h2 id="prevention">How to prevent this from recurring</h2>
+    <ul>
+      <li><strong>Never deploy your project root as your webroot.</strong> The most common cause of <code class="inline">.git</code> exposure is cloning directly into the directory your web server serves. Deploy only the build output (<code class="inline">dist/</code>, <code class="inline">public/</code>) — never the project root. See the <a href="prevent-exposed-files-website.html">prevention guide</a> for platform-specific instructions.</li>
+      <li><strong>Add an explicit server-level deny rule.</strong> A deny rule for <code class="inline">/.git/</code> in your server config is defense-in-depth against a future deploy mistake. The Nginx and Apache configs in Step 1 above are the permanent fix.</li>
+      <li><strong>Never commit secrets to git.</strong> A public <code class="inline">.git</code> folder is most damaging when secrets were ever committed. Keep secrets in environment variables and your platform's secret store. Use <a href="https://labs.copperbaytech.com/leakcheck/" target="_blank" rel="noopener noreferrer">LeakCheck</a> to scan code before committing.</li>
+      <li><strong>Run ExposureCheck after every major deploy.</strong> The scanner checks <code class="inline">/.git/config</code> and related paths on every scan — you'll catch a regression before it has time to be exploited.</li>
+      <li><strong>Include <code class="inline">/.git</code> in your pre-launch checklist.</strong> See the <a href="pre-launch-exposed-files-audit.html">pre-launch audit guide</a> for a complete list of paths to verify before every launch.</li>
+    </ul>
+
+    <h2 id="faq">Frequently asked questions</h2>
+    <div class="faq-section">
+      <details open>
+        <summary>Can someone really reconstruct my full repository from a public /.git/ folder?</summary>
+        <p>Yes. Tools like <a href="https://github.com/arthaud/git-dumper" target="_blank" rel="noopener noreferrer">git-dumper</a> and <a href="https://github.com/internetwache/GitTools" target="_blank" rel="noopener noreferrer">GitTools</a> reconstruct the complete source history by downloading the object store files systematically. Git's object addressing is deterministic — a tool can calculate which object files to request from <code class="inline">/.git/packed-refs</code> without needing directory listing enabled. If <code class="inline">/.git/config</code>, <code class="inline">/.git/HEAD</code>, and <code class="inline">/.git/packed-refs</code> were all accessible, assume full repository reconstruction is possible.</p>
+      </details>
+      <details>
+        <summary>What does a git-dumper attack look like in my access logs?</summary>
+        <p>A distinctive burst of GET requests to <code class="inline">/.git/</code> sub-paths in rapid succession from the same IP. The sequence: <code class="inline">/.git/config</code>, <code class="inline">/.git/HEAD</code>, <code class="inline">/.git/packed-refs</code>, <code class="inline">/.git/objects/info/packs</code>, then individual object files at <code class="inline">/.git/objects/ab/cdef1234...</code>. Dozens to hundreds of requests within a 30–60 second window.</p>
+        <pre><code>grep '/.git/' /var/log/nginx/access.log | sort -k4</code></pre>
+        <p>If you see this pattern, the repository was almost certainly fully reconstructed.</p>
+      </details>
+      <details>
+        <summary>My /.git/config returns 200 but /.git/objects/ returns 403 — am I safe?</summary>
+        <p>Not necessarily. A 403 on the <code class="inline">objects/</code> directory listing doesn't prevent object download if an attacker can enumerate hashes. <code class="inline">/.git/packed-refs</code> lists exact SHAs for all packed objects, and tools like git-dumper request each object file directly using those SHAs — no directory listing needed. If <code class="inline">/.git/packed-refs</code> was accessible, treat the full repository as potentially compromised and follow the full remediation steps.</p>
+      </details>
+      <details>
+        <summary>The .git folder was accessible for several days. What should I assume?</summary>
+        <p>Assume the repository was fully reconstructed. Automated scanners probe <code class="inline">/.git/config</code> continuously across the entire IPv4 address space. A folder accessible for more than a few hours has a high probability of being found. Treat this as a confirmed disclosure: rotate every credential across your entire git history and assess source code disclosure per Step 6.</p>
+      </details>
+      <details>
+        <summary>Do I need to notify users or regulators?</summary>
+        <p>It depends on what was in your repository history. If any commit ever contained personal data (user emails, names, addresses, session tokens, health data), this is a personal data breach under GDPR Article 33 — notify your supervisory authority within 72 hours. US state laws (CCPA, SHIELD, etc.) have their own thresholds. If only credentials and source code were exposed, requirements depend on your jurisdiction and contracts. Consult legal counsel with the specifics of what your git history contained.</p>
+      </details>
+      <details>
+        <summary>How do I block .git access on Vercel and Netlify?</summary>
+        <p><strong>Vercel</strong> — add to <code class="inline">vercel.json</code>:</p>
+        <pre><code>{"redirects":[{"source":"/.git/:path*","destination":"/404","statusCode":404}]}</code></pre>
+        <p><strong>Netlify</strong> — add to <code class="inline">_redirects</code>: <code class="inline">/.git/* /404.html 404</code>. Note that these platforms don't normally serve <code class="inline">.git</code> at all — exposure typically happens on VPS deployments where the project root was cloned directly into the webroot.</p>
+      </details>
+      <details>
+        <summary>What is the difference between .git exposure and .env exposure?</summary>
+        <p>An exposed <code class="inline">.env</code> reveals credentials currently active in your environment. An exposed <code class="inline">.git</code> folder can reveal every credential that ever appeared in any commit — including keys rotated months ago that you thought were no longer relevant. It also leaks your full source code history, including deleted files, internal comments, and architecture details never intended to be public. The remediation scope is broader: audit the entire git history, not just the current state of your code, and treat your source as effectively public going forward.</p>
+      </details>
+    </div>
+
+    <h2 style="margin-top:48px">Also in the Copper Bay Labs ship-safety suite</h2>
+    <p>A public <code class="inline">.git</code> folder is one of several things to check before and after shipping:</p>
+    <div class="suite">
+      <a href="https://labs.copperbaytech.com/leakcheck/" target="_blank" rel="noopener noreferrer">
+        <span class="s-tag">Pre-commit</span>
+        <span class="s-name">LeakCheck</span>
+        <p>Paste code or your <code class="inline">.env</code> and find hardcoded API keys and secrets before they reach the repo.</p>
+      </a>
+      <a href="../">
+        <span class="s-tag">Post-deploy</span>
+        <span class="s-name">ExposureCheck</span>
+        <p>Scan your live URL for exposed <code class="inline">.env</code>, <code class="inline">.git</code>, source maps, and bundled secrets. Free, no signup.</p>
+      </a>
+      <a href="https://labs.copperbaytech.com/hardencheck/" target="_blank" rel="noopener noreferrer">
+        <span class="s-tag">HTTP headers</span>
+        <span class="s-name">HardenCheck</span>
+        <p>Check your security headers — CSP, HSTS, X-Frame-Options — and get a report card with fixes.</p>
+      </a>
+    </div>
+  </div>
+</article>
+</main>
+
+<footer class="footer" role="contentinfo">
+  <div class="wrap foot">
+    <div>
+      <a class="brand small" href="../" aria-label="ExposureCheck — homepage">
+        <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M32 4 54 12v18c0 14-9 24-22 30C19 54 10 44 10 30V12L32 4Z" fill="none" stroke="#cbd2da" stroke-width="4" stroke-linejoin="round"/>
+          <path d="M22 30v-5a10 10 0 0 1 20 0v5" fill="none" stroke="#bf6b3c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="19" y="30" width="26" height="18" rx="3" fill="none" stroke="#bf6b3c" stroke-width="4"/>
+        </svg>
+        <span class="wordmark">ExposureCheck</span>
+      </a>
+      <p class="fine">Heuristic self-check, not a security guarantee. Scan only sites you own.</p>
+    </div>
+    <nav class="foot-nav" aria-label="Footer navigation">
+      <a href="../about.html">How it works</a>
+      <a href="../">Scan your site</a>
+      <a href="prevent-exposed-files-website.html">Prevention guide</a>
+      <a href="how-to-check-website-exposed-files.html">Audit guide</a>
+      <a href="fix-exposed-env-file.html">Fix .env exposure</a>
+      <a href="pre-launch-exposed-files-audit.html">Pre-launch audit</a>
+      <a href="git-folder-exposed-remediation.html">.git exposure response</a>
+      <a href="https://labs.copperbaytech.com/leakcheck/" target="_blank" rel="noopener noreferrer">LeakCheck</a>
+      <a href="https://labs.copperbaytech.com/hardencheck/" target="_blank" rel="noopener noreferrer">HardenCheck</a>
+      <a href="https://labs.copperbaytech.com/shipsafe/" target="_blank" rel="noopener noreferrer">ShipSafe</a>
+      <a href="https://copperbaytech.com" target="_blank" rel="noopener noreferrer">Secure my project &rarr;</a>
+    </nav>
+  </div>
+  <div class="wrap">
+    <p class="madeby">A <a href="https://copperbaytech.com" target="_blank" rel="noopener noreferrer">Copper Bay Labs</a> product.</p>
+  </div>
+</footer>
+</body>
+</html>

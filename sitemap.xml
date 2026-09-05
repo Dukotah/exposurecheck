@@ -34,4 +34,10 @@
     <priority>0.8</priority>
     <lastmod>2026-08-19</lastmod>
   </url>
+  <url>
+    <loc>https://labs.copperbaytech.com/exposurecheck/guides/git-folder-exposed-remediation.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <lastmod>2026-09-05</lastmod>
+  </url>
 </urlset>
