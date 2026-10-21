@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to Fix an Exposed Source Map — Source Map Security Guide</title>
+<meta name="description" content="Source maps shipped to production expose your original unminified JavaScript to anyone with browser dev tools. Learn how to detect the leak, disable source maps per framework, block server access, and use safer alternatives for error monitoring.">
+<link rel="canonical" href="https://labs.copperbaytech.com/exposurecheck/guides/source-map-exposure-fix.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="ExposureCheck">
+<meta property="og:title" content="How to Fix an Exposed Source Map — Source Map Security Guide">
+<meta property="og:description" content="Source maps in production give anyone your unminified source. Disable them in Vite, Next.js, CRA and webpack, block access at the server, or use private uploads for error monitoring only.">
+<meta property="og:url" content="https://labs.copperbaytech.com/exposurecheck/guides/source-map-exposure-fix.html">
+<meta property="og:image" content="https://labs.copperbaytech.com/exposurecheck/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#faf8f4">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"How to Fix an Exposed Source Map — Source Map Security Guide","description":"Source maps shipped to production expose your original unminified JavaScript to anyone with browser developer tools. This guide covers how to detect a source map leak with ExposureCheck, disable source maps per build tool (Vite, Create React App, Next.js, webpack), block source map access at the server level (Nginx, Apache, Vercel, Netlify, Caddy), and use private source map uploads for error monitoring without public exposure.","author":{"@type":"Organization","name":"Copper Bay Labs","url":"https://copperbaytech.com"},"publisher":{"@type":"Organization","name":"Copper Bay Labs","url":"https://copperbaytech.com"},"datePublished":"2026-10-21","dateModified":"2026-10-21","mainEntityOfPage":"https://labs.copperbaytech.com/exposurecheck/guides/source-map-exposure-fix.html","mainEntity":{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Are source maps a security vulnerability?","acceptedAnswer":{"@type":"Answer","text":"Yes, publicly accessible source maps are a significant security risk. A source map exposes your complete, unminified original JavaScript to anyone who opens browser developer tools or requests the .map file directly. This reveals your business logic, algorithm implementations, internal API endpoints, comments, variable names, and sometimes credentials accidentally left in code. Most security frameworks treat publicly accessible source maps as an information disclosure vulnerability."}},{"@type":"Question","name":"What does a source map actually expose?","acceptedAnswer":{"@type":"Answer","text":"A .map file contains a full snapshot of your pre-build source, including: original file paths, all original variable and function names before minification, original comments stripped during minification, unobfuscated business logic, internal endpoint paths hardcoded in your JS, any credentials or API keys present in your source at build time, and the full directory structure of your project."}},{"@type":"Question","name":"How do I know if my site has an exposed source map?","acceptedAnswer":{"@type":"Answer","text":"Open browser developer tools, go to the Sources or Debugger panel, and look for readable, commented, human-named files alongside your minified bundle. Alternatively, request your main bundle URL with .map appended — if it returns 200 with a JSON file, the source map is publicly accessible. ExposureCheck checks this automatically: it fetches your deployed bundle, reads any SourceMappingURL comment pointing to a .map file, and requests it to see if it's publicly reachable."}},{"@type":"Question","name":"If I disable source maps, how do I debug production errors?","acceptedAnswer":{"@type":"Answer","text":"The right approach is private source map uploads: upload your .map files to your error monitoring service (Sentry, Datadog, Rollbar, Bugsnag all support this) and exclude them from your public deploy. Your error monitor uses the private maps to show you symbolicated stack traces, while no .map file is ever publicly served. This is the industry-standard approach for production source maps."}},{"@type":"Question","name":"Does minification without source maps actually protect my code?","acceptedAnswer":{"@type":"Answer","text":"Minification provides weak obfuscation, not security. Variable names are shortened, whitespace is removed, and the code is harder to read, but a determined reader can still reverse-engineer your business logic. If your source maps are exposed, minification provides no protection at all — the map file fully reconstructs the original. For real code protection, consider a dedicated obfuscator like javascript-obfuscator, and treat all client-side JS as visible regardless."}},{"@type":"Question","name":"Why do source maps get deployed to production by default?","acceptedAnswer":{"@type":"Answer","text":"Most build tools generate source maps in development for debugging and keep that setting for production builds unless explicitly disabled. Vite enables source maps in production by default in some configurations. Create React App has separate GENERATE_SOURCEMAP=false env var. Next.js disables them by default in production but has options that re-enable them. The inconsistency across tools means source maps often appear in production builds unless developers explicitly review the setting."}},{"@type":"Question","name":"What's the SourceMappingURL comment at the end of my bundle?","acceptedAnswer":{"@type":"Answer","text":"The last line of a minified JavaScript or CSS bundle often contains a comment like //# sourceMappingURL=main.chunk.js.map. This is a hint from the build tool telling your browser (and any tool that reads it) where to find the source map for this file. If the referenced .map file is publicly accessible, anyone who reads this comment — including automated scanners — can download the full source map. Removing the SourceMappingURL comment or blocking access to .map files at the server level are both valid fixes."}}]}}
+</script>
+<link rel="stylesheet" href="../styles.css?v=1">
+<style>
+  .doc .lede{font-size:clamp(17px,2.3vw,20px);color:var(--muted)}
+  .doc h2{scroll-margin-top:80px}
+  .doc h3{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:19px;margin:22px 0 6px;letter-spacing:-.01em}
+  .toc{display:flex;flex-wrap:wrap;gap:10px;margin:22px 0 6px;padding:0;list-style:none}
+  .toc a{display:inline-block;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:7px 14px;font-size:14px;font-weight:600;color:var(--muted)}
+  .toc a:hover{border-color:var(--bay);color:var(--ink);text-decoration:none}
+  .callout.warn-callout{background:var(--fail-bg);border-left-color:var(--fail);color:#5e2019}
+  .callout.tip-callout{background:var(--pass-bg);border-left-color:var(--pass);color:#1b4d30}
+  .callout.note-callout{background:var(--warn-bg);border-left-color:var(--warn);color:#4d3208}
+  .doc code.inline{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.9em;background:var(--line-2);padding:2px 6px;border-radius:5px}
+  pre{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;overflow-x:auto;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.6;margin:12px 0}
+  pre code{background:none;padding:0;font-size:inherit}
+  .framework-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin:18px 0}
+  .framework-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+  .framework-card h3{margin:0 0 8px;font-size:16px;font-family:"Fraunces",Georgia,serif;font-weight:600}
+  .framework-card p{font-size:14px;color:var(--muted);margin:8px 0 0}
+  .framework-card pre{margin:10px 0 0;font-size:12.5px}
+  .expose-table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px}
+  .expose-table th{text-align:left;padding:10px 12px;background:var(--surface);border-bottom:2px solid var(--line);font-weight:600;font-family:"Hanken Grotesk",sans-serif}
+  .expose-table td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  .expose-table tr:last-child td{border-bottom:none}
+  .expose-table code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:var(--line-2);padding:2px 5px;border-radius:4px}
+  .sev-critical{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:6px;background:var(--fail-bg);color:var(--fail)}
+  .sev-high{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:6px;background:var(--high-bg,#fff1e6);color:var(--high,#c04c00)}
+  .sev-med{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:6px;background:var(--warn-bg);color:var(--warn)}
+  .suite{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:18px 0 6px}
+  .suite a{display:block;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow);transition:box-shadow .15s,transform .15s,border-color .15s}
+  .suite a:hover{text-decoration:none;box-shadow:var(--shadow-lift);transform:translateY(-2px);border-color:var(--line-2)}
+  .suite .s-name{font-family:"Fraunces",serif;font-weight:600;font-size:17px;color:var(--ink);display:block;margin:0 0 4px}
+  .suite p{color:var(--muted);font-size:14px;margin:0}
+  .suite .s-tag{display:inline-block;margin-bottom:8px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--bay);background:var(--bay-tint,#e8f4f6);border:1px solid #cfe1e3;border-radius:6px;padding:2px 8px}
+  .faq-section{margin:18px 0}
+  .faq-section details{border-bottom:1px solid var(--line);padding:14px 0}
+  .faq-section details:first-child{border-top:1px solid var(--line)}
+  .faq-section summary{font-weight:600;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .faq-section summary::-webkit-details-marker{display:none}
+  .faq-section summary::after{content:"+";font-size:20px;color:var(--muted);flex-shrink:0}
+  .faq-section details[open] summary::after{content:"\2212"}
+  .faq-section details p,.faq-section details ul,.faq-section details pre{margin:12px 0 4px;color:var(--muted)}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+
+<header class="masthead" role="banner">
+  <div class="wrap hdr-bar">
+    <a class="brand" href="../" aria-label="ExposureCheck — go to homepage">
+      <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M32 4 54 12v18c0 14-9 24-22 30C19 54 10 44 10 30V12L32 4Z" fill="none" stroke="#13525a" stroke-width="4" stroke-linejoin="round"/>
+        <path d="M22 30v-5a10 10 0 0 1 20 0v5" fill="none" stroke="#bf6b3c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="19" y="30" width="26" height="18" rx="3" fill="none" stroke="#bf6b3c" stroke-width="4"/>
+      </svg>
+      <span class="wordmark">ExposureCheck</span>
+    </a>
+    <nav class="nav" aria-label="Primary navigation">
+      <a href="../about.html">How it works</a>
+      <a href="../">Scan your site</a>
+      <a href="how-to-check-website-exposed-files.html">Audit guide</a>
+      <a href="prevent-exposed-files-website.html">Prevention</a>
+      <a href="pre-launch-exposed-files-audit.html">Pre-launch</a>
+      <a href="git-folder-exposed-remediation.html">After .git exposure</a>
+      <a href="source-map-exposure-fix.html" aria-current="page">Source maps</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+<article class="doc">
+  <div class="wrap narrow">
+    <p class="eyebrow" style="text-align:left">Security guide</p>
+    <h1>How to fix an exposed source map</h1>
+    <p class="lede">A source map file (<code class="inline">.js.map</code>) gives anyone who requests it a full copy of your original, unminified JavaScript — variable names, comments, logic, and all. Most build tools generate them automatically, and they often ship to production without anyone noticing. This guide shows you how to detect the leak, disable source maps per build tool, block them at the server, and still get useful stack traces in your error monitor.</p>
+
+    <div class="callout warn-callout">
+      <strong>Check first.</strong> Open your browser developer tools (Sources or Debugger tab) on your live site. If you see readable, named, commented source files instead of minified code, your source maps are already mapped in — meaning the <code class="inline">.map</code> files are publicly accessible. Or <a href="../">run ExposureCheck</a> to confirm automatically.
+    </div>
+
+    <ul class="toc" aria-label="On this page">
+      <li><a href="#what-they-expose">What source maps expose</a></li>
+      <li><a href="#detect">Detecting the leak</a></li>
+      <li><a href="#disable-build">Disable at build time</a></li>
+      <li><a href="#block-server">Block at the server</a></li>
+      <li><a href="#error-monitoring">Source maps for error monitoring</a></li>
+      <li><a href="#verify">Verify the fix</a></li>
+      <li><a href="#faq">FAQ</a></li>
+    </ul>
+
+    <h2 id="what-they-expose">What source maps actually expose</h2>
+    <p>A <code class="inline">.map</code> file is a JSON document that maps each position in your minified bundle back to a line and column in your original source. It was designed to make production debugging easier — but when served publicly, it fully reconstructs your pre-build code for anyone who requests it.</p>
+
+    <table class="expose-table">
+      <thead>
+        <tr><th>What's in the map file</th><th>Why it matters</th><th>Risk</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Original file paths</td>
+          <td>Reveals your project directory structure, build system, and technology choices</td>
+          <td><span class="sev-med">Medium</span></td>
+        </tr>
+        <tr>
+          <td>Original function and variable names</td>
+          <td>Fully undoes minification; business logic is as readable as your development source</td>
+          <td><span class="sev-high">High</span></td>
+        </tr>
+        <tr>
+          <td>Stripped comments</td>
+          <td>Developer notes, TODO items, internal architecture details, version comments</td>
+          <td><span class="sev-high">High</span></td>
+        </tr>
+        <tr>
+          <td>Internal API endpoint paths</td>
+          <td>Hardcoded URLs, staging endpoints, and admin routes visible in your JS logic</td>
+          <td><span class="sev-high">High</span></td>
+        </tr>
+        <tr>
+          <td>Credentials in source at build time</td>
+          <td>If any API key or secret was in your source when the map was generated, it's in the map</td>
+          <td><span class="sev-critical">Critical</span></td>
+        </tr>
+        <tr>
+          <td>Feature flag names and logic</td>
+          <td>Undisclosed features, A/B test variants, unreleased code paths</td>
+          <td><span class="sev-med">Medium</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>The map file also contains the full source text of each file via the <code class="inline">sourcesContent</code> array — which means even if the original source files aren't served, anyone with the <code class="inline">.map</code> file has every line of your pre-minified code.</p>
+
+    <h2 id="detect">Detecting a source map leak</h2>
+
+    <h3>Method 1: ExposureCheck (automated)</h3>
+    <p><a href="../">ExposureCheck</a> fetches your deployed bundle, reads the <code class="inline">//# sourceMappingURL=</code> comment at the end of each script, constructs the corresponding <code class="inline">.map</code> URL, and requests it. If it gets back valid JSON with a <code class="inline">sources</code> array, the source map is confirmed publicly accessible — flagged as a high-severity finding with the full path listed.</p>
+
+    <h3>Method 2: Browser developer tools</h3>
+    <p>Open any page on your live site, open browser developer tools, and go to the <strong>Sources</strong> (Chrome/Edge) or <strong>Debugger</strong> (Firefox) panel. If you see a tree of named, readable files with comments and meaningful variable names instead of your minified bundle — your source maps are loading. This is the most immediate visual indicator.</p>
+
+    <h3>Method 3: Direct URL test</h3>
+    <p>Find your main bundle URL (check Network tab → JS → the largest file), then append <code class="inline">.map</code>:</p>
+    <pre><code>curl -s -o /dev/null -w "%{http_code}" https://your-site.com/assets/index.abc123.js.map</code></pre>
+    <p>A <code class="inline">200</code> response with a <code class="inline">Content-Type: application/json</code> header confirms the source map is publicly accessible.</p>
+
+    <h3>Method 4: Check the SourceMappingURL comment</h3>
+    <p>View the source of your deployed bundle and look at the last line:</p>
+    <pre><code>curl -s https://your-site.com/assets/index.abc123.js | tail -5</code></pre>
+    <p>If you see <code class="inline">//# sourceMappingURL=index.abc123.js.map</code>, the map file exists and your browser will attempt to load it. Request that URL directly to see if it's accessible.</p>
+
+    <h2 id="disable-build">Disable source maps at build time</h2>
+    <p>The cleanest fix is to stop generating source maps for production builds entirely. The setting differs per build tool:</p>
+
+    <div class="framework-grid">
+      <div class="framework-card">
+        <h3>Vite</h3>
+        <p>In <code class="inline">vite.config.ts</code> (or <code class="inline">.js</code>):</p>
+        <pre><code>export default defineConfig({
+  build: {
+    sourcemap: false,
+  },
+})
+</code></pre>
+        <p>The default for <code class="inline">build.sourcemap</code> in Vite is <code class="inline">false</code>, but some templates and plugins set it to <code class="inline">true</code> or <code class="inline">'inline'</code>. Explicitly setting <code class="inline">false</code> overrides any inherited value.</p>
+      </div>
+
+      <div class="framework-card">
+        <h3>Create React App</h3>
+        <p>Set the environment variable before your build command:</p>
+        <pre><code>GENERATE_SOURCEMAP=false npm run build
+</code></pre>
+        <p>Or add it to your <code class="inline">.env.production</code> file:</p>
+        <pre><code>GENERATE_SOURCEMAP=false
+</code></pre>
+      </div>
+
+      <div class="framework-card">
+        <h3>Next.js</h3>
+        <p>Next.js disables source maps for production builds by default. If source maps are appearing, check for these options in <code class="inline">next.config.js</code> and remove them:</p>
+        <pre><code>// Remove these if present:
+productionBrowserSourceMaps: true,
+
+// For webpack customizations:
+config.devtool = false; // set to false
+</code></pre>
+      </div>
+
+      <div class="framework-card">
+        <h3>webpack (manual config)</h3>
+        <p>In <code class="inline">webpack.config.js</code>, set <code class="inline">devtool</code> to <code class="inline">false</code> for production:</p>
+        <pre><code>module.exports = (env) => ({
+  devtool: env.production ? false : 'eval-source-map',
+  // ...
+})
+</code></pre>
+        <p>Or use environment detection:</p>
+        <pre><code>devtool: process.env.NODE_ENV === 'production'
+  ? false
+  : 'eval-source-map',
+</code></pre>
+      </div>
+
+      <div class="framework-card">
+        <h3>SvelteKit</h3>
+        <p>In <code class="inline">vite.config.ts</code> (SvelteKit uses Vite under the hood):</p>
+        <pre><code>import { sveltekit } from '@sveltejs/kit/vite';
+export default defineConfig({
+  plugins: [sveltekit()],
+  build: {
+    sourcemap: false,
+  },
+});
+</code></pre>
+      </div>
+
+      <div class="framework-card">
+        <h3>Nuxt</h3>
+        <p>In <code class="inline">nuxt.config.ts</code>:</p>
+        <pre><code>export default defineNuxtConfig({
+  sourcemap: {
+    server: false,
+    client: false,
+  },
+})
+</code></pre>
+        <p>Nuxt 3 generates source maps for both client and server bundles by default in production. Set both to <code class="inline">false</code>.</p>
+      </div>
+    </div>
+
+    <div class="callout note-callout">
+      <strong>CSS source maps too.</strong> If your build also generates <code class="inline">.css.map</code> files, apply the same setting to your CSS pipeline. In Vite, setting <code class="inline">build.sourcemap: false</code> covers both JS and CSS. In webpack, a separate <code class="inline">css-loader</code> option controls CSS maps: <code class="inline">{ loader: 'css-loader', options: { sourceMap: false } }</code>.
+    </div>
+
+    <h2 id="block-server">Block source map access at the server</h2>
+    <p>If you can't change the build config (a third-party build, a legacy app, or an interim fix), you can deny all requests to <code class="inline">.map</code> files at the server or CDN layer. This doesn't remove the files from your deployment, but it prevents them from being served to public visitors.</p>
+
+    <div class="framework-grid">
+      <div class="framework-card">
+        <h3>Nginx</h3>
+        <pre><code>location ~* \.map$ {
+    deny all;
+    return 404;
+}
+</code></pre>
+        <p>Add to your <code class="inline">server {}</code> block, then <code class="inline">nginx -t &amp;&amp; nginx -s reload</code>.</p>
+      </div>
+
+      <div class="framework-card">
+        <h3>Apache (.htaccess)</h3>
+        <pre><code>&lt;FilesMatch "\.map$"&gt;
+  Order allow,deny
+  Deny from all
+&lt;/FilesMatch&gt;
+</code></pre>
+        <p>Place in the <code class="inline">.htaccess</code> file at the root of your deployed assets.</p>
+      </div>
+
+      <div class="framework-card">
+        <h3>Vercel (vercel.json)</h3>
+        <pre><code>{
+  "redirects": [{
+    "source": "/(.*)\.map",
+    "destination": "/404",
+    "statusCode": 404
+  }]
+}
+</code></pre>
+      </div>
+
+      <div class="framework-card">
+        <h3>Netlify (_redirects)</h3>
+        <pre><code>/*.map /404.html 404
+</code></pre>
+        <p>Or in <code class="inline">netlify.toml</code>:</p>
+        <pre><code>[[redirects]]
+  from = "/*.map"
+  to = "/404.html"
+  status = 404
+  force = true
+</code></pre>
+      </div>
+
+      <div class="framework-card">
+        <h3>Caddy (Caddyfile)</h3>
+        <pre><code>respond /*.map 404
+</code></pre>
+      </div>
+
+      <div class="framework-card">
+        <h3>Cloudflare (Transform Rules)</h3>
+        <p>Create a Transform Rule matching <code class="inline">http.request.uri.path ends_with ".map"</code> with action "Block". Available on all plan tiers, including free. Also consider a WAF rule to log attempts before blocking.</p>
+      </div>
+    </div>
+
+    <div class="callout note-callout">
+      <strong>Server-level blocking vs. build-time disabling.</strong> Blocking at the server still leaves <code class="inline">.map</code> files sitting on your server. It's an effective interim fix, but the preferred approach is disabling map generation in the build so they're never deployed in the first place. Use server-level blocking when you can't change the build, and as defense-in-depth when you can.
+    </div>
+
+    <h2 id="error-monitoring">Source maps for error monitoring — the right way</h2>
+    <p>The reason source maps exist in production is legitimate: without them, a stack trace from a minified bundle is unreadable. The solution is <strong>private source map uploads</strong> — upload your <code class="inline">.map</code> files directly to your error monitoring service, then exclude them from your public deployment entirely.</p>
+
+    <h3>How private source map uploads work</h3>
+    <ol>
+      <li>Build your app with source maps enabled (to disk, not inline).</li>
+      <li>Upload the <code class="inline">.map</code> files to your error monitor using their CLI or API, keyed to your release version.</li>
+      <li>Delete the <code class="inline">.map</code> files from your build output, or add them to your deploy's exclude list so they're never pushed to your CDN or hosting provider.</li>
+      <li>Your error monitor uses the private maps to symbolicate crash reports, showing you the original source line. Visitors never see the maps.</li>
+    </ol>
+
+    <h3>Error monitor source map upload commands</h3>
+    <div class="framework-grid">
+      <div class="framework-card">
+        <h3>Sentry</h3>
+        <pre><code># Install Sentry CLI
+npm install -g @sentry/cli
+
+# Upload source maps
+sentry-cli releases \
+  --org YOUR_ORG \
+  --project YOUR_PROJECT \
+  files $VERSION upload-sourcemaps ./dist \
+  --url-prefix '~/assets'
+</code></pre>
+        <p>Or use the <code class="inline">@sentry/vite-plugin</code> / <code class="inline">@sentry/webpack-plugin</code> to upload automatically as part of the build.</p>
+      </div>
+
+      <div class="framework-card">
+        <h3>Datadog</h3>
+        <pre><code>datadog-ci sourcemaps upload ./dist \
+  --service=your-app \
+  --release-version=$VERSION \
+  --minified-path-prefix=https://your-site.com/
+</code></pre>
+      </div>
+
+      <div class="framework-card">
+        <h3>Rollbar</h3>
+        <pre><code># Via Rollbar Deployment API:
+curl https://api.rollbar.com/api/1/sourcemap \
+  -F access_token=YOUR_TOKEN \
+  -F version=$VERSION \
+  -F minified_url=https://your-site.com/assets/index.js \
+  -F source_map=@./dist/assets/index.js.map
+</code></pre>
+      </div>
+    </div>
+
+    <p>After uploading, remove the <code class="inline">.map</code> files from your deploy artifact:</p>
+    <pre><code># Build, upload maps to Sentry, delete maps, then deploy
+npm run build
+sentry-cli releases files $VERSION upload-sourcemaps ./dist --url-prefix '~/'
+find ./dist -name "*.map" -delete
+# now deploy ./dist — no .map files present
+</code></pre>
+
+    <h2 id="verify">Verify the fix</h2>
+    <p>After making the change and redeploying:</p>
+
+    <h3>1. Run ExposureCheck</h3>
+    <p><a href="../">ExposureCheck</a> will re-fetch your live bundle, check for the <code class="inline">sourceMappingURL</code> comment, and attempt to download the referenced <code class="inline">.map</code> file. If the fix is correct, the source map finding will be absent from the report.</p>
+
+    <h3>2. Test directly with curl</h3>
+    <pre><code># Check your main JS bundle for a sourceMappingURL comment
+curl -s https://your-site.com/assets/index.abc123.js | grep -i sourceMappingURL
+
+# If a .map URL appears, request it directly:
+curl -s -o /dev/null -w "%{http_code}" https://your-site.com/assets/index.abc123.js.map
+# Should return 404, not 200
+</code></pre>
+
+    <h3>3. Check browser dev tools</h3>
+    <p>Open the Sources (Chrome/Edge) or Debugger (Firefox) panel on your live site. You should now see only the minified bundle, not readable original source files. If source files still appear, your browser may have a cached version of the old map — do a hard reload (<kbd>Ctrl+Shift+R</kbd> or <kbd>Cmd+Shift+R</kbd>) or check with a new incognito window.</p>
+
+    <div class="callout tip-callout">
+      <strong>Check for CDN cache.</strong> If you're behind Cloudflare, Fastly, or another CDN, the old <code class="inline">.map</code> file may still be cached at the edge even after your origin fix is deployed. Purge the cache for <code class="inline">*.map</code> paths after deploying the fix, then re-test.
+    </div>
+
+    <p style="margin:24px 0 8px"><a class="btn primary" href="../">Scan your live site with ExposureCheck to confirm the fix &rarr;</a></p>
+
+    <h2 id="faq">Frequently asked questions</h2>
+    <div class="faq-section">
+      <details open>
+        <summary>Are source maps actually a security vulnerability?</summary>
+        <p>Yes, publicly accessible source maps are treated as an information disclosure vulnerability by most security frameworks. A <code class="inline">.map</code> file exposes your complete original JavaScript — variable names, comments, business logic, internal API paths — undoing all the protection minification provides. If your source ever contained credentials, those appear in the map file too. Most penetration test reports cite public source maps as a medium-to-high severity finding.</p>
+      </details>
+      <details>
+        <summary>What exactly does a source map expose?</summary>
+        <p>A <code class="inline">.map</code> file is a JSON object containing a <code class="inline">sourcesContent</code> array — the full text of every source file that went into the bundle. It also contains the original file paths, original variable and function names before minification, and a mapping table that reconstructs every line of original code from the minified output. Developer tools use it to show you a debuggable view; an attacker uses it to understand your application in detail.</p>
+      </details>
+      <details>
+        <summary>How do I know if my site has an exposed source map?</summary>
+        <p>Run ExposureCheck on your live URL — it reads the <code class="inline">sourceMappingURL</code> comment from your deployed bundle and tests whether the referenced <code class="inline">.map</code> file is publicly accessible. You can also check manually: open browser developer tools → Sources → look for readable, named files instead of minified code. Or request your bundle URL with <code class="inline">.map</code> appended and see if you get back JSON.</p>
+      </details>
+      <details>
+        <summary>If I disable source maps, how do I debug production errors?</summary>
+        <p>Use private source map uploads. Build with source maps enabled, upload them to your error monitoring service (Sentry, Datadog, Rollbar, Bugsnag all support this workflow), then delete the <code class="inline">.map</code> files before deploying. Your error monitor uses the private maps to show you symbolicated stack traces in your dashboard — without ever serving them publicly. This is the industry-standard approach and the one all major error monitoring docs recommend.</p>
+      </details>
+      <details>
+        <summary>Does minification without source maps protect my code?</summary>
+        <p>Minification provides weak obfuscation — variable names are shortened and whitespace removed, making the code harder to read, but a determined reader can still reverse-engineer your business logic. If your source maps are exposed, minification offers zero protection; the map reconstructs everything. If you need real code protection, consider a dedicated JavaScript obfuscator on top of (or instead of) minification. But be aware: all client-side code should be treated as visible regardless, because it runs in users' browsers.</p>
+      </details>
+      <details>
+        <summary>Why do source maps end up in production by default?</summary>
+        <p>Most build tools enable source maps in development for debugging, and the production setting inherits from the same base config unless explicitly overridden. Vite's <code class="inline">build.sourcemap</code> defaults to <code class="inline">false</code>, but some plugin presets set it to <code class="inline">true</code>. Create React App requires an explicit <code class="inline">GENERATE_SOURCEMAP=false</code> to disable. Next.js disables them by default in production but has options that can re-enable them. The inconsistency means source maps often appear when someone copies a dev config to production, upgrades a framework, or changes build tools.</p>
+      </details>
+      <details>
+        <summary>What's the SourceMappingURL comment at the end of my bundle?</summary>
+        <p>The last line of a built JavaScript file often reads <code class="inline">//# sourceMappingURL=index.chunk.js.map</code>. This comment tells the browser where to find the source map for that file. When a browser (or tool like ExposureCheck) reads this, it constructs the <code class="inline">.map</code> URL and requests it. Removing the comment from your bundle or blocking <code class="inline">*.map</code> requests at the server both prevent the map from loading in a visitor's browser, but the cleanest fix is not generating the map file at all.</p>
+      </details>
+    </div>
+
+    <h2 style="margin-top:48px">Related guides in the ExposureCheck suite</h2>
+    <div class="suite">
+      <a href="fix-exposed-env-file.html">
+        <span class="s-tag">Critical fix</span>
+        <span class="s-name">Fix an exposed .env file</span>
+        <p>Rotate credentials, block the path on every hosting platform, and verify the fix across Nginx, Apache, Vercel, and Netlify.</p>
+      </a>
+      <a href="prevent-exposed-files-website.html">
+        <span class="s-tag">Prevention</span>
+        <span class="s-name">Prevent exposed files</span>
+        <p>Server configuration, deploy workflow, and .gitignore patterns to keep sensitive files out of your public webroot.</p>
+      </a>
+      <a href="https://labs.copperbaytech.com/leakcheck/" target="_blank" rel="noopener noreferrer">
+        <span class="s-tag">Pre-commit</span>
+        <span class="s-name">LeakCheck</span>
+        <p>Scan your source code and <code>.env</code> files for hardcoded API keys before they reach your repo or your bundle.</p>
+      </a>
+    </div>
+  </div>
+</article>
+</main>
+
+<footer class="footer" role="contentinfo">
+  <div class="wrap foot">
+    <div>
+      <a class="brand small" href="../" aria-label="ExposureCheck — homepage">
+        <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M32 4 54 12v18c0 14-9 24-22 30C19 54 10 44 10 30V12L32 4Z" fill="none" stroke="#cbd2da" stroke-width="4" stroke-linejoin="round"/>
+          <path d="M22 30v-5a10 10 0 0 1 20 0v5" fill="none" stroke="#bf6b3c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="19" y="30" width="26" height="18" rx="3" fill="none" stroke="#bf6b3c" stroke-width="4"/>
+        </svg>
+        <span class="wordmark">ExposureCheck</span>
+      </a>
+      <p class="fine">Heuristic self-check, not a security guarantee. Scan only sites you own.</p>
+    </div>
+    <nav class="foot-nav" aria-label="Footer navigation">
+      <a href="../about.html">How it works</a>
+      <a href="../">Scan your site</a>
+      <a href="prevent-exposed-files-website.html">Prevention guide</a>
+      <a href="how-to-check-website-exposed-files.html">Audit guide</a>
+      <a href="fix-exposed-env-file.html">Fix .env exposure</a>
+      <a href="pre-launch-exposed-files-audit.html">Pre-launch audit</a>
+      <a href="git-folder-exposed-remediation.html">.git exposure response</a>
+      <a href="source-map-exposure-fix.html">Source maps</a>
+      <a href="https://labs.copperbaytech.com/leakcheck/" target="_blank" rel="noopener noreferrer">LeakCheck</a>
+      <a href="https://labs.copperbaytech.com/hardencheck/" target="_blank" rel="noopener noreferrer">HardenCheck</a>
+      <a href="https://labs.copperbaytech.com/shipsafe/" target="_blank" rel="noopener noreferrer">ShipSafe</a>
+      <a href="https://copperbaytech.com" target="_blank" rel="noopener noreferrer">Secure my project &rarr;</a>
+    </nav>
+  </div>
+  <div class="wrap">
+    <p class="madeby">A <a href="https://copperbaytech.com" target="_blank" rel="noopener noreferrer">Copper Bay Labs</a> product.</p>
+  </div>
+</footer>
+</body>
+</html>
