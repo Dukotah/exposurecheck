@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API Key Found in Your JavaScript Bundle — How to Fix It</title>
+<meta name="description" content="ExposureCheck found a hardcoded API key or secret in your deployed JavaScript. Learn what to rotate first, how the key ended up in your bundle, how to move it server-side, and how to prevent it from shipping again.">
+<link rel="canonical" href="https://labs.copperbaytech.com/exposurecheck/guides/hardcoded-api-key-javascript-bundle.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="ExposureCheck">
+<meta property="og:title" content="API Key Found in Your JavaScript Bundle — How to Fix It">
+<meta property="og:description" content="A hardcoded API key in your live JavaScript is readable by anyone who opens the Network tab. Rotate the key now, move calls server-side, and verify the fix with ExposureCheck.">
+<meta property="og:url" content="https://labs.copperbaytech.com/exposurecheck/guides/hardcoded-api-key-javascript-bundle.html">
+<meta property="og:image" content="https://labs.copperbaytech.com/exposurecheck/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#faf8f4">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"TechArticle","headline":"API Key Found in Your JavaScript Bundle — How to Fix It","description":"When ExposureCheck finds a hardcoded API key or secret in your deployed JavaScript bundle, it means any visitor — or automated scanner — can read that credential in plain text. This guide explains why bundled keys are dangerous, how to rotate the exposed key immediately, how it ended up in your bundle, how to move the API call server-side so the key is never exposed to browsers, and how to prevent it from shipping again.","author":{"@type":"Organization","name":"Copper Bay Labs","url":"https://copperbaytech.com"},"publisher":{"@type":"Organization","name":"Copper Bay Labs","url":"https://copperbaytech.com"},"datePublished":"2026-10-25","dateModified":"2026-10-25","mainEntityOfPage":"https://labs.copperbaytech.com/exposurecheck/guides/hardcoded-api-key-javascript-bundle.html","mainEntity":{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Is a hardcoded API key in a JavaScript bundle actually dangerous?","acceptedAnswer":{"@type":"Answer","text":"Yes. A key in your deployed JavaScript is readable by anyone who opens browser developer tools, by automated security scanners, and by web crawlers. The minified bundle is publicly served — anyone who visits your site can download it and search for credential patterns. There is no obfuscation that protects a key embedded in client-side code. If the key has any write permissions, billing implications, or rate limits, it should be treated as compromised immediately."}},{"@type":"Question","name":"What kinds of keys does ExposureCheck find in JavaScript bundles?","acceptedAnswer":{"@type":"Answer","text":"ExposureCheck scans your deployed JavaScript for patterns that match well-known API key formats: OpenAI keys (sk-...), Stripe secret keys (sk_live_...), Stripe publishable keys (pk_live_...), AWS access key IDs (AKIA...), Google API keys (AIza...), GitHub personal access tokens (ghp_...), Supabase service role keys, and other credential patterns. It distinguishes between keys that are designed to be public (like Stripe publishable keys) and those that should never be client-side (like OpenAI keys or Stripe secret keys)."}},{"@type":"Question","name":"I just found an API key in my production bundle — what do I do first?","acceptedAnswer":{"@type":"Answer","text":"Rotate (revoke and replace) the exposed key immediately — before doing anything else, before fixing the code. Go to your API provider's dashboard, revoke the compromised key, and generate a new one. Assume the key has been seen by someone else even if you don't have evidence of misuse; many attacks are silent. Once the old key is revoked, it doesn't matter that it's still in your bundle — it's dead. Then fix the code so the new key never ends up in the bundle."}},{"@type":"Question","name":"How did an API key end up in my JavaScript bundle?","acceptedAnswer":{"@type":"Answer","text":"The three most common root causes: (1) The key is hardcoded directly in a JavaScript or TypeScript file — the most obvious case. (2) The key is in a .env file prefixed with VITE_, REACT_APP_, or NEXT_PUBLIC_ — these prefixes tell the build tool to inline the value into the browser bundle at build time, so even a value loaded from .env becomes embedded in the JavaScript. (3) The key is imported from a config file that gets included in the client bundle. Only code that runs on a server (Node.js routes, serverless functions, edge functions) can safely access secret keys."}},{"@type":"Question","name":"What's the right way to call an API that needs a secret key from a web app?","acceptedAnswer":{"@type":"Answer","text":"Write a thin server-side proxy route that holds the API key as a server-only environment variable and forwards requests from your frontend. In Next.js, this is an API Route or App Router route handler. In Vite-based apps, it's a serverless function (Vercel Functions, Netlify Functions, Cloudflare Workers). The frontend calls your own endpoint — which runs on a server where the key is never sent to the browser — and your endpoint calls the third-party API. The key stays on the server; your users never see it."}},{"@type":"Question","name":"Can I just obfuscate or base64-encode the API key in my bundle instead?","acceptedAnswer":{"@type":"Answer","text":"No. Base64 encoding and JavaScript obfuscation are not security measures for secret keys. Base64 decodes in one command. JavaScript obfuscators make code harder to read, but an attacker looking specifically for an API key will search the decoded or deobfuscated output. Any key embedded in client-side JavaScript — regardless of encoding — should be treated as publicly visible. The only fix is moving the key to code that never runs in a browser."}},{"@type":"Question","name":"How do I make sure the new key never ends up in the bundle?","acceptedAnswer":{"@type":"Answer","text":"Three steps: (1) Store the new key as a server-only environment variable — no VITE_, REACT_APP_, or NEXT_PUBLIC_ prefix. (2) Scan your .env file with LeakCheck before committing, to catch any keys before they reach your repo or build pipeline. (3) After deploying, run ExposureCheck on your live site to confirm the key is absent from the bundle. Also check that source maps are disabled so that even your server-side code paths aren't reconstructible from publicly served files."}}]}}
+</script>
+<link rel="stylesheet" href="../styles.css?v=1">
+<style>
+  .doc .lede{font-size:clamp(17px,2.3vw,20px);color:var(--muted)}
+  .doc h2{scroll-margin-top:80px}
+  .doc h3{font-family:"Fraunces",Georgia,serif;font-weight:600;font-size:19px;margin:22px 0 6px;letter-spacing:-.01em}
+  .toc{display:flex;flex-wrap:wrap;gap:10px;margin:22px 0 6px;padding:0;list-style:none}
+  .toc a{display:inline-block;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:7px 14px;font-size:14px;font-weight:600;color:var(--muted)}
+  .toc a:hover{border-color:var(--bay);color:var(--ink);text-decoration:none}
+  .callout.warn-callout{background:var(--fail-bg);border-left-color:var(--fail);color:#5e2019}
+  .callout.tip-callout{background:var(--pass-bg);border-left-color:var(--pass);color:#1b4d30}
+  .callout.note-callout{background:var(--warn-bg);border-left-color:var(--warn);color:#4d3208}
+  .doc code.inline{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.9em;background:var(--line-2);padding:2px 6px;border-radius:5px}
+  pre{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;overflow-x:auto;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.6;margin:12px 0}
+  pre code{background:none;padding:0;font-size:inherit}
+  .framework-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin:18px 0}
+  .framework-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+  .framework-card h3{margin:0 0 8px;font-size:16px;font-family:"Fraunces",Georgia,serif;font-weight:600}
+  .framework-card p{font-size:14px;color:var(--muted);margin:8px 0 0}
+  .framework-card pre{margin:10px 0 0;font-size:12.5px}
+  .expose-table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px}
+  .expose-table th{text-align:left;padding:10px 12px;background:var(--surface);border-bottom:2px solid var(--line);font-weight:600;font-family:"Hanken Grotesk",sans-serif}
+  .expose-table td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  .expose-table tr:last-child td{border-bottom:none}
+  .expose-table code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:var(--line-2);padding:2px 5px;border-radius:4px}
+  .sev-critical{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:6px;background:var(--fail-bg);color:var(--fail)}
+  .sev-high{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:6px;background:var(--high-bg,#fff1e6);color:var(--high,#c04c00)}
+  .sev-med{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:6px;background:var(--warn-bg);color:var(--warn)}
+  .sev-low{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:6px;background:var(--line-2);color:var(--muted)}
+  .suite{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:18px 0 6px}
+  .suite a{display:block;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow);transition:box-shadow .15s,transform .15s,border-color .15s}
+  .suite a:hover{text-decoration:none;box-shadow:var(--shadow-lift);transform:translateY(-2px);border-color:var(--line-2)}
+  .suite .s-name{font-family:"Fraunces",serif;font-weight:600;font-size:17px;color:var(--ink);display:block;margin:0 0 4px}
+  .suite p{color:var(--muted);font-size:14px;margin:0}
+  .suite .s-tag{display:inline-block;margin-bottom:8px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--bay);background:var(--bay-tint,#e8f4f6);border:1px solid #cfe1e3;border-radius:6px;padding:2px 8px}
+  .faq-section{margin:18px 0}
+  .faq-section details{border-bottom:1px solid var(--line);padding:14px 0}
+  .faq-section details:first-child{border-top:1px solid var(--line)}
+  .faq-section summary{font-weight:600;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:12px}
+  .faq-section summary::-webkit-details-marker{display:none}
+  .faq-section summary::after{content:"+";font-size:20px;color:var(--muted);flex-shrink:0}
+  .faq-section details[open] summary::after{content:"\2212"}
+  .faq-section details p,.faq-section details ul,.faq-section details pre{margin:12px 0 4px;color:var(--muted)}
+  .steps-list{counter-reset:steps;padding:0;list-style:none;margin:12px 0}
+  .steps-list li{counter-increment:steps;display:flex;gap:16px;margin-bottom:16px}
+  .steps-list li::before{content:counter(steps);display:flex;align-items:center;justify-content:center;flex-shrink:0;width:30px;height:30px;border-radius:50%;background:var(--bay-tint,#e8f4f6);border:1px solid #cfe1e3;font-weight:700;font-size:14px;color:var(--bay);font-family:"Hanken Grotesk",sans-serif}
+  .steps-list .step-body{flex:1;padding-top:4px}
+  .steps-list .step-body strong{display:block;font-weight:700;margin-bottom:4px}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+
+<header class="masthead" role="banner">
+  <div class="wrap hdr-bar">
+    <a class="brand" href="../" aria-label="ExposureCheck — go to homepage">
+      <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M32 4 54 12v18c0 14-9 24-22 30C19 54 10 44 10 30V12L32 4Z" fill="none" stroke="#13525a" stroke-width="4" stroke-linejoin="round"/>
+        <path d="M22 30v-5a10 10 0 0 1 20 0v5" fill="none" stroke="#bf6b3c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="19" y="30" width="26" height="18" rx="3" fill="none" stroke="#bf6b3c" stroke-width="4"/>
+      </svg>
+      <span class="wordmark">ExposureCheck</span>
+    </a>
+    <nav class="nav" aria-label="Primary navigation">
+      <a href="../about.html">How it works</a>
+      <a href="../">Scan your site</a>
+      <a href="how-to-check-website-exposed-files.html">Audit guide</a>
+      <a href="prevent-exposed-files-website.html">Prevention</a>
+      <a href="pre-launch-exposed-files-audit.html">Pre-launch</a>
+      <a href="git-folder-exposed-remediation.html">After .git exposure</a>
+      <a href="source-map-exposure-fix.html">Source maps</a>
+      <a href="hardcoded-api-key-javascript-bundle.html" aria-current="page">Bundled keys</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+<article class="doc">
+  <div class="wrap narrow">
+    <p class="eyebrow" style="text-align:left">Security guide</p>
+    <h1>API key found in your JavaScript bundle</h1>
+    <p class="lede">When ExposureCheck finds a hardcoded credential in your deployed JavaScript, it means that key is readable by anyone who views your site’s source — not just people who know where to look, but automated scanners, competitors, and anyone who’s curious. This guide walks through what to do first (rotate the key), how the key got into your bundle, and how to fix it permanently.</p>
+
+    <div class="callout warn-callout">
+      <strong>Rotate the exposed key now, before anything else.</strong> A key in a public JavaScript file should be treated as already compromised. Go to your API provider’s dashboard and revoke it immediately — then come back and follow this guide to prevent recurrence. <a href="#rotate">Jump to rotation steps &darr;</a>
+    </div>
+
+    <ul class="toc" aria-label="On this page">
+      <li><a href="#why-dangerous">Why bundled keys are dangerous</a></li>
+      <li><a href="#what-detects">What ExposureCheck detects</a></li>
+      <li><a href="#rotate">Rotate the key immediately</a></li>
+      <li><a href="#root-cause">How it got into your bundle</a></li>
+      <li><a href="#fix">Move the call server-side</a></li>
+      <li><a href="#prevention">Prevention checklist</a></li>
+      <li><a href="#verify">Verify the fix</a></li>
+      <li><a href="#faq">FAQ</a></li>
+    </ul>
+
+    <h2 id="why-dangerous">Why a key in a JavaScript bundle is dangerous</h2>
+    <p>Your bundled JavaScript is a static file served by your CDN or hosting provider to every visitor. There is no authentication before it’s delivered. The following table shows the realistic impact depending on the type of credential exposed:</p>
+
+    <table class="expose-table">
+      <thead>
+        <tr><th>Credential type</th><th>What an attacker can do with it</th><th>Risk</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>OpenAI API key (<code>sk-…</code>)</td>
+          <td>Run inference against your account; drain your billing limit; access fine-tuned models you’ve trained</td>
+          <td><span class="sev-critical">Critical</span></td>
+        </tr>
+        <tr>
+          <td>Stripe secret key (<code>sk_live_…</code>)</td>
+          <td>Create or cancel charges, issue refunds, read customer data and payment methods</td>
+          <td><span class="sev-critical">Critical</span></td>
+        </tr>
+        <tr>
+          <td>AWS access key + secret</td>
+          <td>Read S3 buckets, spin up EC2 instances, exfiltrate secrets from Parameter Store or Secrets Manager</td>
+          <td><span class="sev-critical">Critical</span></td>
+        </tr>
+        <tr>
+          <td>Supabase service role key</td>
+          <td>Bypass Row Level Security, read and write any table in your database as an admin</td>
+          <td><span class="sev-critical">Critical</span></td>
+        </tr>
+        <tr>
+          <td>SendGrid / Resend send key</td>
+          <td>Send unlimited email as your domain; damage deliverability reputation; access contact lists</td>
+          <td><span class="sev-high">High</span></td>
+        </tr>
+        <tr>
+          <td>GitHub personal access token (<code>ghp_…</code>)</td>
+          <td>Read private repos, push code, delete branches, depending on token scopes</td>
+          <td><span class="sev-high">High</span></td>
+        </tr>
+        <tr>
+          <td>Stripe publishable key (<code>pk_live_…</code>)</td>
+          <td>Tokenize card input in a payment form — designed to be public; no server access</td>
+          <td><span class="sev-low">Intended public</span></td>
+        </tr>
+        <tr>
+          <td>Google Maps / Mapbox public token</td>
+          <td>Make map tile requests on your behalf; can drain quota if no referrer restriction is set</td>
+          <td><span class="sev-med">Medium</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout note-callout">
+      <strong>Minification doesn’t protect a key.</strong> Minifying your JavaScript changes variable names and removes whitespace, but the key value — a long string of characters — is copied verbatim into the output. An automated scanner searching for <code class="inline">sk-</code> or <code class="inline">AKIA</code> finds it in milliseconds regardless of surrounding obfuscation.
+    </div>
+
+    <h2 id="what-detects">What ExposureCheck detects in bundles</h2>
+    <p><a href="../">ExposureCheck</a> fetches your live JavaScript bundles and applies pattern matching against known credential formats. It looks for:</p>
+    <ul>
+      <li>OpenAI keys starting with <code class="inline">sk-</code> (also <code class="inline">sk-proj-</code> and <code class="inline">sk-org-</code>)</li>
+      <li>Stripe secret keys (<code class="inline">sk_live_</code>, <code class="inline">sk_test_</code>) and publishable keys (<code class="inline">pk_live_</code>, <code class="inline">pk_test_</code>)</li>
+      <li>AWS access key IDs starting with <code class="inline">AKIA</code> or <code class="inline">ASIA</code></li>
+      <li>Google API keys starting with <code class="inline">AIza</code></li>
+      <li>GitHub tokens starting with <code class="inline">ghp_</code>, <code class="inline">gho_</code>, or <code class="inline">github_pat_</code></li>
+      <li>Supabase service role keys (JWT with <code class="inline">service_role</code> in the payload)</li>
+      <li>Generic high-entropy strings assigned to variable names containing <code class="inline">secret</code>, <code class="inline">api_key</code>, <code class="inline">token</code>, or <code class="inline">password</code></li>
+    </ul>
+    <p>For Stripe publishable keys and Google Maps public tokens, ExposureCheck notes the finding but marks them at lower severity — these keys are architecturally intended to be public-facing, though they should still have domain restrictions set.</p>
+
+    <h2 id="rotate">Step 1: Rotate the exposed key immediately</h2>
+    <p>Before changing any code, revoke the compromised key at the provider. Rotating the key means the old value in your bundle is dead — even if it remains in the code, it can’t be used by anyone who extracts it.</p>
+
+    <div class="framework-grid">
+      <div class="framework-card">
+        <h3>OpenAI</h3>
+        <p>Platform &rarr; API keys &rarr; find the key &rarr; Revoke. Then create a new key. Consider binding the new key to a project to limit scope.</p>
+      </div>
+      <div class="framework-card">
+        <h3>Stripe</h3>
+        <p>Dashboard &rarr; Developers &rarr; API keys &rarr; Roll the secret key. Stripe issues a new secret key while giving you a short window to update running systems before the old one expires.</p>
+      </div>
+      <div class="framework-card">
+        <h3>AWS</h3>
+        <p>IAM &rarr; Users &rarr; Security credentials &rarr; Deactivate the exposed access key. Create a new key pair. Review CloudTrail for any unauthorized API calls made with the old key in the past 30 days.</p>
+      </div>
+      <div class="framework-card">
+        <h3>Supabase</h3>
+        <p>Project Settings &rarr; API &rarr; Reset the service role JWT secret. Note: this invalidates all existing JWTs for the project, including user sessions. Coordinate the rotation with a redeploy.</p>
+      </div>
+      <div class="framework-card">
+        <h3>GitHub</h3>
+        <p>Settings &rarr; Developer settings &rarr; Personal access tokens &rarr; Delete the exposed token. Create a replacement with the minimum required scopes. Consider a fine-grained token scoped to specific repos.</p>
+      </div>
+      <div class="framework-card">
+        <h3>Google Cloud</h3>
+        <p>Cloud Console &rarr; APIs &amp; Services &rarr; Credentials &rarr; find the key &rarr; Delete (or restrict, then create a replacement). Check Cloud Logging &rarr; Activity for calls made with the old key.</p>
+      </div>
+    </div>
+
+    <div class="callout tip-callout">
+      <strong>After rotating, check your audit log.</strong> OpenAI (Usage dashboard), Stripe (Logs), AWS (CloudTrail), and GCP (Cloud Audit Logs) all show API calls made with your old key. Review the last 30 days for calls you don’t recognize before closing the incident.
+    </div>
+
+    <h2 id="root-cause">Step 2: Understand how it got into your bundle</h2>
+    <p>There are three main paths a secret key takes from your local environment into a public JavaScript file:</p>
+
+    <ol class="steps-list">
+      <li>
+        <div class="step-body">
+          <strong>Hardcoded directly in source code</strong>
+          The key is written as a string literal in a <code class="inline">.js</code>, <code class="inline">.ts</code>, or <code class="inline">.jsx</code> file that gets included in the client bundle. This includes config files, API client initializations, and copy-pasted examples where the placeholder was never replaced.
+        </div>
+      </li>
+      <li>
+        <div class="step-body">
+          <strong>Environment variable with a browser-inlining prefix</strong>
+          The key is in a <code class="inline">.env</code> file but prefixed with <code class="inline">VITE_</code>, <code class="inline">REACT_APP_</code>, or <code class="inline">NEXT_PUBLIC_</code>. These prefixes tell the build tool to replace every reference with the literal value at build time — the result is identical to hardcoding the key, and it’s inlined into the compiled bundle as a plain string.
+        </div>
+      </li>
+      <li>
+        <div class="step-body">
+          <strong>Imported from a config or constants file</strong>
+          The key is defined in a module like <code class="inline">src/config.js</code> or <code class="inline">src/constants.ts</code> and imported by components that run in the browser. Even if the file isn’t named something obviously sensitive, if it’s imported by client-side code, its contents go into the bundle.
+        </div>
+      </li>
+    </ol>
+
+    <p>The common thread: any code that runs in a browser must be treated as public. There is no protected execution context in client-side JavaScript — your bundle is downloaded and executed in a visitor’s browser, and everything in it is readable.</p>
+
+    <h2 id="fix">Step 3: Move the API call server-side</h2>
+    <p>The fix is to write a thin server-side route that holds the key as an environment variable and proxies requests from your frontend. The key never leaves the server; your frontend calls your own endpoint instead of the third-party API directly.</p>
+
+    <h3>The pattern</h3>
+    <pre><code>Before (broken):
+  Browser → calls third-party API directly using a key in your JS bundle
+
+After (correct):
+  Browser → calls YOUR server route → server holds the key, calls third-party API
+</code></pre>
+
+    <h3>Next.js App Router (route handler)</h3>
+    <pre><code>// app/api/generate/route.ts
+// This runs on the server. OPENAI_API_KEY has no NEXT_PUBLIC_ prefix.
+import OpenAI from 'openai';
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+export async function POST(request: Request) {
+  const { prompt } = await request.json();
+  const completion = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [{ role: 'user', content: prompt }],
+  });
+  return Response.json({ text: completion.choices[0].message.content });
+}
+</code></pre>
+    <p>Your frontend calls <code class="inline">/api/generate</code> — the <code class="inline">OPENAI_API_KEY</code> variable has no <code class="inline">NEXT_PUBLIC_</code> prefix, so it’s never included in the browser bundle.</p>
+
+    <h3>Vite + Vercel serverless function</h3>
+    <pre><code>// api/generate.ts  (Vercel Functions — runs on the server)
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // process.env.OPENAI_API_KEY is a server-only env var set in Vercel dashboard
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: req.body.prompt }],
+    }),
+  });
+  const data = await response.json();
+  res.json({ text: data.choices[0].message.content });
+}
+</code></pre>
+
+    <h3>Set environment variables correctly</h3>
+    <p>On your hosting platform, add the key as a <strong>server-only</strong> environment variable:</p>
+    <div class="framework-grid">
+      <div class="framework-card">
+        <h3>Vercel</h3>
+        <p>Project Settings &rarr; Environment Variables. Add the variable without a <code class="inline">VITE_</code> prefix and ensure it is marked available to <em>Server</em> only — not <em>Browser</em>.</p>
+      </div>
+      <div class="framework-card">
+        <h3>Netlify</h3>
+        <p>Site configuration &rarr; Environment variables. Add the key. Reference it in your Netlify Functions via <code class="inline">process.env.YOUR_KEY</code>. Do not prefix with <code class="inline">NEXT_PUBLIC_</code> or <code class="inline">REACT_APP_</code>.</p>
+      </div>
+      <div class="framework-card">
+        <h3>Cloudflare Workers</h3>
+        <p>Settings &rarr; Environment variables &rarr; Secrets. Add the key as an encrypted Secret. Available in your Worker via <code class="inline">env.MY_KEY</code>, never sent to browsers.</p>
+      </div>
+      <div class="framework-card">
+        <h3>GitHub Actions / self-hosted</h3>
+        <p>Store the key in GitHub Actions Secrets or your server’s environment. Never use env var prefixes that trigger build-time inlining in client bundles.</p>
+      </div>
+    </div>
+
+    <h2 id="prevention">Prevention checklist</h2>
+    <p>Once the fix is deployed, prevent recurrence:</p>
+    <ol>
+      <li><strong>Audit all prefixed env vars.</strong> Search your codebase for <code class="inline">VITE_</code>, <code class="inline">REACT_APP_</code>, and <code class="inline">NEXT_PUBLIC_</code> variable names. Any that hold secret keys need to be renamed (remove the prefix) and moved to server-only code paths.</li>
+      <li><strong>Scan your <code class="inline">.env</code> files with LeakCheck before committing.</strong> <a href="https://labs.copperbaytech.com/leakcheck/" target="_blank" rel="noopener noreferrer">LeakCheck</a> detects credential patterns in your source before they reach your repo or build pipeline.</li>
+      <li><strong>Add a pre-commit hook.</strong> Run a secrets scanner on every commit. See the <a href="https://labs.copperbaytech.com/leakcheck/guides/prevent-committing-secrets-pre-commit.html" target="_blank" rel="noopener noreferrer">LeakCheck pre-commit guide</a> for setup with Husky, lint-staged, and git hooks.</li>
+      <li><strong>Audit your production bundle after every deploy.</strong> Download your production bundle and grep for known key patterns: <code class="inline">grep -r &quot;sk-&quot; dist/</code>, <code class="inline">grep -r &quot;AKIA&quot; dist/</code>, <code class="inline">grep -r &quot;_live_&quot; dist/</code>.</li>
+      <li><strong>Disable source maps in production</strong> so that even server-side code paths aren’t reconstructible from publicly served files. See the <a href="source-map-exposure-fix.html">source map fix guide</a> for framework-specific settings.</li>
+      <li><strong>Run ExposureCheck after every significant deploy.</strong> It scans your live site for exposed keys, env files, source maps, and other credential patterns in one pass.</li>
+    </ol>
+
+    <h2 id="verify">Verify the fix</h2>
+    <h3>1. Run ExposureCheck</h3>
+    <p><a href="../">ExposureCheck</a> will fetch your live JavaScript, scan for credential patterns, and confirm the key no longer appears in the deployed bundle. If the finding is absent, the fix is confirmed.</p>
+
+    <h3>2. Check the bundle manually</h3>
+    <pre><code># Download your main JS bundle and search for key patterns
+curl -s https://your-site.com/assets/index.abc123.js | grep -c "sk-"
+# Should return 0
+
+curl -s https://your-site.com/assets/index.abc123.js | grep -c "AKIA"
+# Should return 0
+</code></pre>
+
+    <h3>3. Confirm the API call still works</h3>
+    <p>Test your feature end-to-end with the new key stored server-side. Verify that the server-side route receives and forwards requests correctly and that the third-party API responds as expected. Then run ExposureCheck on staging before deploying to production.</p>
+
+    <p style="margin:24px 0 8px"><a class="btn primary" href="../">Scan your live site with ExposureCheck to confirm the fix &rarr;</a></p>
+
+    <h2 id="faq">Frequently asked questions</h2>
+    <div class="faq-section">
+      <details open>
+        <summary>Is a hardcoded API key in a JavaScript bundle actually dangerous?</summary>
+        <p>Yes. A key in your deployed JavaScript is readable by anyone who opens browser developer tools, by automated security scanners, and by web crawlers. The minified bundle is a public static file — anyone who visits your site can download it and search for credential patterns. There is no runtime protection that prevents extraction once a value is embedded in client-side code. If the key has any write permissions, billing implications, or rate limits, treat it as compromised immediately.</p>
+      </details>
+      <details>
+        <summary>What kinds of keys does ExposureCheck find in bundles?</summary>
+        <p>ExposureCheck scans for well-known credential patterns: OpenAI keys (<code class="inline">sk-…</code>), Stripe keys (<code class="inline">sk_live_</code>, <code class="inline">sk_test_</code>, <code class="inline">pk_live_</code>), AWS access key IDs (<code class="inline">AKIA…</code>), Google API keys (<code class="inline">AIza…</code>), GitHub tokens (<code class="inline">ghp_</code>, <code class="inline">gho_</code>, <code class="inline">github_pat_</code>), Supabase service role JWTs, and generic high-entropy strings in variables named <code class="inline">secret</code>, <code class="inline">api_key</code>, or <code class="inline">token</code>. Stripe publishable keys and Google Maps public tokens are flagged at lower severity — architecturally intended to be public, but should still have domain restrictions configured.</p>
+      </details>
+      <details>
+        <summary>I found an API key in my bundle — what should I do first?</summary>
+        <p>Rotate (revoke and replace) the exposed key at your provider’s dashboard before touching any code. Assume it has already been seen — many credential-harvesting attacks are silent. Once the old key is revoked, it’s dead even while it remains in your deployed bundle. Then follow this guide to fix the code so the new key never ends up in the bundle, and run ExposureCheck to confirm the fix.</p>
+      </details>
+      <details>
+        <summary>How did an API key end up in my JavaScript bundle?</summary>
+        <p>The three most common root causes: (1) Hardcoded directly in a source file included in the client bundle. (2) In a <code class="inline">.env</code> file prefixed with <code class="inline">VITE_</code>, <code class="inline">REACT_APP_</code>, or <code class="inline">NEXT_PUBLIC_</code> — these prefixes tell the build tool to inline the value into the browser bundle at build time, making it identical to hardcoding. (3) Imported from a config file that gets included in client-side code. Any code that runs in a browser is public.</p>
+      </details>
+      <details>
+        <summary>What’s the right way to call an API requiring a secret key from a web app?</summary>
+        <p>Write a server-side proxy route that holds the key as a server-only environment variable and forwards requests from your frontend. In Next.js, use an App Router route handler in <code class="inline">app/api/</code>. In Vite-based apps on Vercel or Netlify, use a serverless function. The frontend calls your own endpoint, your endpoint calls the third-party API with the key, and the key is never included in anything the browser downloads.</p>
+      </details>
+      <details>
+        <summary>Can I obfuscate or base64-encode the key in my bundle instead?</summary>
+        <p>No. Base64 decodes in one command. JavaScript obfuscators make code harder to read in general but do not protect specific known-format strings — an attacker searching for <code class="inline">sk-</code> or <code class="inline">AKIA</code> will find the encoded value and decode it. Any key embedded in client-side JavaScript, regardless of encoding, should be treated as publicly visible. The only real fix is moving the key to server-side code that never runs in a browser.</p>
+      </details>
+      <details>
+        <summary>How do I make sure the new key never ends up in the bundle?</summary>
+        <p>Three steps: (1) Store the new key as a server-only environment variable with no client-inlining prefix. (2) Scan your <code class="inline">.env</code> files with <a href="https://labs.copperbaytech.com/leakcheck/" target="_blank" rel="noopener noreferrer">LeakCheck</a> before every commit. (3) After deploying, run ExposureCheck on your live site to confirm the key is absent from the bundle. Also disable source maps so that server-side code paths aren’t reconstructible from the deployed assets.</p>
+      </details>
+    </div>
+
+    <h2 style="margin-top:48px">Related guides in the ExposureCheck suite</h2>
+    <div class="suite">
+      <a href="source-map-exposure-fix.html">
+        <span class="s-tag">Source maps</span>
+        <span class="s-name">Fix an exposed source map</span>
+        <p>Disable source maps in Vite, Next.js and webpack so your original source isn’t reconstructible from the bundle.</p>
+      </a>
+      <a href="fix-exposed-env-file.html">
+        <span class="s-tag">Critical fix</span>
+        <span class="s-name">Fix an exposed .env file</span>
+        <p>Rotate credentials, block the path on every hosting platform, and verify the fix across Nginx, Apache, Vercel, and Netlify.</p>
+      </a>
+      <a href="https://labs.copperbaytech.com/leakcheck/" target="_blank" rel="noopener noreferrer">
+        <span class="s-tag">Pre-commit</span>
+        <span class="s-name">LeakCheck</span>
+        <p>Scan your source code and <code>.env</code> files for hardcoded API keys before they reach your repo or your bundle.</p>
+      </a>
+    </div>
+  </div>
+</article>
+</main>
+
+<footer class="footer" role="contentinfo">
+  <div class="wrap foot">
+    <div>
+      <a class="brand small" href="../" aria-label="ExposureCheck — homepage">
+        <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M32 4 54 12v18c0 14-9 24-22 30C19 54 10 44 10 30V12L32 4Z" fill="none" stroke="#cbd2da" stroke-width="4" stroke-linejoin="round"/>
+          <path d="M22 30v-5a10 10 0 0 1 20 0v5" fill="none" stroke="#bf6b3c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="19" y="30" width="26" height="18" rx="3" fill="none" stroke="#bf6b3c" stroke-width="4"/>
+        </svg>
+        <span class="wordmark">ExposureCheck</span>
+      </a>
+      <p class="fine">Heuristic self-check, not a security guarantee. Scan only sites you own.</p>
+    </div>
+    <nav class="foot-nav" aria-label="Footer navigation">
+      <a href="../about.html">How it works</a>
+      <a href="../">Scan your site</a>
+      <a href="prevent-exposed-files-website.html">Prevention guide</a>
+      <a href="how-to-check-website-exposed-files.html">Audit guide</a>
+      <a href="fix-exposed-env-file.html">Fix .env exposure</a>
+      <a href="pre-launch-exposed-files-audit.html">Pre-launch audit</a>
+      <a href="git-folder-exposed-remediation.html">.git exposure response</a>
+      <a href="source-map-exposure-fix.html">Source maps</a>
+      <a href="hardcoded-api-key-javascript-bundle.html">Bundled keys</a>
+      <a href="https://labs.copperbaytech.com/leakcheck/" target="_blank" rel="noopener noreferrer">LeakCheck</a>
+      <a href="https://labs.copperbaytech.com/hardencheck/" target="_blank" rel="noopener noreferrer">HardenCheck</a>
+      <a href="https://labs.copperbaytech.com/shipsafe/" target="_blank" rel="noopener noreferrer">ShipSafe</a>
+      <a href="https://copperbaytech.com" target="_blank" rel="noopener noreferrer">Secure my project &rarr;</a>
+    </nav>
+  </div>
+  <div class="wrap">
+    <p class="madeby">A <a href="https://copperbaytech.com" target="_blank" rel="noopener noreferrer">Copper Bay Labs</a> product.</p>
+  </div>
+</footer>
+</body>
+</html>

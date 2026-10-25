@@ -46,4 +46,10 @@
     <priority>0.8</priority>
     <lastmod>2026-10-21</lastmod>
   </url>
+  <url>
+    <loc>https://labs.copperbaytech.com/exposurecheck/guides/hardcoded-api-key-javascript-bundle.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <lastmod>2026-10-25</lastmod>
+  </url>
 </urlset>
