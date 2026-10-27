@@ -88,6 +88,7 @@
       <a href="pre-launch-exposed-files-audit.html">Pre-launch</a>
       <a href="git-folder-exposed-remediation.html">After .git exposure</a>
       <a href="source-map-exposure-fix.html" aria-current="page">Source maps</a>
+      <a href="hardcoded-api-key-javascript-bundle.html">Bundled keys</a>
     </nav>
   </div>
 </header>
@@ -285,7 +286,7 @@ export default defineConfig({
         <h3>Vercel (vercel.json)</h3>
         <pre><code>{
   "redirects": [{
-    "source": "/(.*)\.map",
+    "source": "/(.*)\&#92;.map",
     "destination": "/404",
     "statusCode": 404
   }]
@@ -479,6 +480,7 @@ curl -s -o /dev/null -w "%{http_code}" https://your-site.com/assets/index.abc123
       <a href="pre-launch-exposed-files-audit.html">Pre-launch audit</a>
       <a href="git-folder-exposed-remediation.html">.git exposure response</a>
       <a href="source-map-exposure-fix.html">Source maps</a>
+      <a href="hardcoded-api-key-javascript-bundle.html">Bundled keys</a>
       <a href="https://labs.copperbaytech.com/leakcheck/" target="_blank" rel="noopener noreferrer">LeakCheck</a>
       <a href="https://labs.copperbaytech.com/hardencheck/" target="_blank" rel="noopener noreferrer">HardenCheck</a>
       <a href="https://labs.copperbaytech.com/shipsafe/" target="_blank" rel="noopener noreferrer">ShipSafe</a>
